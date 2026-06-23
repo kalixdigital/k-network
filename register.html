@@ -9,26 +9,31 @@
 <div class="register-container">
 
     <h1>Join K-NETWORK</h1>
+    
+<form id="registerForm">
 
-    <form>
+    <input id="fullName" type="text" placeholder="Full Name" required>
 
-        <input type="text" placeholder="Full Name" required>
+    <input id="phone" type="tel" placeholder="Phone Number" required>
 
-        <input type="tel" placeholder="Phone Number" required>
+    <input id="opay" type="tel" placeholder="OPay Number" required>
 
-        <input type="tel" placeholder="OPay Number" required>
+    <input id="password" type="password" placeholder="Password" required>
 
-        <input type="password" placeholder="Password" required>
+    <input id="referralCode" type="text" placeholder="Referral Code (Optional)">
 
-        <input type="text" placeholder="Referral Code (Optional)">
+    <button type="submit">
+        Register
+    </button>
 
-        <button type="submit">
-            Register
-        </button>
-
-    </form>
-
+</form>
 </div>
 
+
+
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+
+<script src="script.js"></script>
 </body>
 </html>
