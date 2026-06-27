@@ -1,39 +1,35 @@
 import Navbar from "@/components/Navbar";
+import Hero from "@/components/home/Hero";
+import Stats from "@/components/home/Stats";
+import HowItWorks from "@/components/home/HowItWorks";
+import FeaturedProduct from "@/components/home/FeaturedProduct";
+import MembershipLevels from "@/components/home/MembershipLevels";
+import CompensationOverview from "@/components/home/CompensationOverview";
+import Testimonials from "@/components/home/Testimonials";
+import FAQ from "@/components/home/FAQ";
+import Footer from "@/components/home/Footer";
+
+
+
+
 
 export default function Home() {
   return (
-   <>
-         <Navbar />
-         
-    <main className="min-h-screen bg-slate-950 text-white">
-      <section className="max-w-7xl mx-auto px-6 py-20 text-center">
+    <>
+      <Navbar />
 
-        <h1 className="text-5xl md:text-7xl font-extrabold">
-          K-NETWORK
-        </h1>
+      <main className="min-h-screen bg-slate-950 text-white">
+        <Hero />
+	<Stats />
+	<HowItWorks />
+	<FeaturedProduct />
+	<MembershipLevels />
+	<CompensationOverview />
+	<Testimonials />
+	<FAQ />
+      </main>
 
-        <p className="mt-6 text-xl text-slate-300">
-          Wellness Today. Wealth Tomorrow.
-        </p>
-
-        <p className="mt-8 text-slate-400 max-w-2xl mx-auto">
-          Join Nigeria's modern wellness and referral platform.
-          Buy trusted health products, build your network,
-          earn reward points, and grow together.
-        </p>
-
-        <div className="mt-10 flex justify-center gap-4">
-          <button className="bg-emerald-500 hover:bg-emerald-600 px-6 py-3 rounded-xl font-semibold">
-            Get Started
-          </button>
-
-          <button className="border border-slate-600 px-6 py-3 rounded-xl">
-            Learn More
-          </button>
-        </div>
-
-      </section>
-    </main>
+      <Footer />
     </>
   );
 }
