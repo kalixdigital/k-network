@@ -128,3 +128,34 @@
     @apply font-sans;
   }
 }
+
+
+
+:root {
+  --background: #020617;
+  --card: #0f172a;
+  --border: #1e293b;
+
+  --primary: #10b981;
+  --secondary: #14b8a6;
+  --gold: #f59e0b;
+
+  --heading: #ffffff;
+  --body: #cbd5e1;
+  --muted: #94a3b8;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--background);
+  color: var(--body);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-heading);
+}
