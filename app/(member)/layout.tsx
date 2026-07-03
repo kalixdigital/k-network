@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
-
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
 import BottomNavigation from "@/components/dashboard/BottomNavigation";
+import { ConfirmDialogProvider } from "@/components/providers/ConfirmDialogProvider";
 
 export default function MemberLayout({
   children,
@@ -10,17 +10,15 @@ export default function MemberLayout({
 }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-black">
-
       <DashboardHeader />
-
-      <main className="mx-auto max-w-6xl px-4 py-6 pb-28">
-
-        {children}
-
+      <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-20 pb-32">
+        <div className="relative z-10 w-full overflow-x-hidden">
+          <ConfirmDialogProvider>
+            {children}
+          </ConfirmDialogProvider>
+        </div>
       </main>
-
       <BottomNavigation />
-
     </div>
   );
 }

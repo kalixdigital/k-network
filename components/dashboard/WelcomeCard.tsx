@@ -2,13 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
+import { showToast } from "@/components/ui/toast";
 import StatsCard from "./StatsCard";
 import LevelProgress from "./LevelProgress";
 import QuickActions from "./QuickActions";
 import ReferralCard from "./ReferralCard";
 import RecentActivity from "./RecentActivity";
-
-
 
 type Profile = {
   full_name: string;
@@ -25,154 +24,195 @@ type Profile = {
 
 export default function WelcomeCard() {
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-  const loadProfile = async () => {
-    // Get the logged-in user
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const loadProfile = async () => {
+      try {
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser();
 
-    if (!user) return;
+        if (userError) {
+          console.error("User fetch error:", userError);
+          showToast.error("Failed to fetch user data");
+          setLoading(false);
+          return;
+        }
 
-    // Get the user's profile
-    const { data, error } = await supabase
-      .from("profiles")
-      .select(`
-        full_name,
-        id_number,
-        membership_level,
-        monthly_points,
-        lifetime_points,
-        monthly_earnings,
-        lifetime_earnings,
-        direct_referrals,
-        indirect_referrals,
-        is_verified
-      `)
-      .eq("id", user.id)
-      .single();
+        if (!user) {
+          showToast.error("Please log in to continue");
+          setLoading(false);
+          return;
+        }
 
-    if (error) {
-      console.error(error);
-      return;
-    }
+        const { data, error } = await supabase
+          .from("profiles")
+          .select(
+            `
+            full_name,
+            id_number,
+            membership_level,
+            monthly_points,
+            lifetime_points,
+            monthly_earnings,
+            lifetime_earnings,
+            direct_referrals,
+            indirect_referrals,
+            is_verified
+          `
+          )
+          .eq("id", user.id)
+          .single();
 
-    setProfile(data);
-  };
+        if (error) {
+          //console.error("Profile fetch error:", error);
+          console.error("Supabase response:", {
+            data,
+            error,
+          });
+          
+          console.error("Error code:", error?.code);
+          console.error("Error message:", error?.message);
+          console.error("Error details:", error?.details);
+          console.error("Error hint:", error?.hint);
+          
+          showToast.error("Failed to load profile data");
+          setLoading(false);
+          return;
+        }
 
-  loadProfile();
-}, []);
+        setProfile(data);
+      } catch (err) {
+        console.error("Unexpected error:", err);
+        showToast.error("An unexpected error occurred");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadProfile();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <div className="text-center">
+          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-emerald-400 border-t-transparent" />
+          <p className="mt-4 text-slate-400">Loading your dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!profile) {
     return (
-      <div className="rounded-3xl border border-slate-800 bg-slate-900 p-8 text-slate-400">
-        Loading...
+      <div className="mx-auto max-w-md rounded-2xl border border-red-500/20 bg-slate-900 p-8 text-center">
+        <div className="mb-4 text-6xl">⚠️</div>
+        <h2 className="mb-2 text-2xl font-bold text-white">Profile Not Found</h2>
+        <p className="mb-4 text-slate-400">
+          We couldn't find your profile. Please contact support.
+        </p>
       </div>
     );
-}
-return (
-  <>
-    {/* Hero Card */}
-    <div className="relative overflow-hidden rounded-3xl border border-emerald-500/20 bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 p-8 shadow-2xl">
+  }
 
-      <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10 blur-3xl" />
+  return (
+    <div className="space-y-6">
+      {/* Hero Card */}
+      <div className="relative overflow-hidden rounded-2xl border border-emerald-500/20 bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 p-6 shadow-2xl md:p-8">
+        <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10 blur-3xl" />
+        <div className="absolute -bottom-20 -left-20 h-60 w-60 rounded-full bg-white/5 blur-3xl" />
 
-      <div className="relative">
+        <div className="relative">
+          <p className="text-sm text-white/80 md:text-lg">Welcome back 👋</p>
+          <h1 className="mt-2 text-2xl font-bold text-white md:text-4xl">
+            {profile.full_name}
+          </h1>
 
-        <p className="text-white/80">
-          Welcome back 👋
-        </p>
+          <div className="mt-4 flex flex-wrap gap-3 md:mt-6 md:gap-6">
+            <div>
+              <p className="text-xs uppercase tracking-wider text-white/70">
+                Member ID
+              </p>
+              <p className="text-lg font-bold text-white md:text-xl">
+                {profile.id_number}
+              </p>
+            </div>
 
-        <h1 className="mt-2 text-4xl font-bold text-white">
-          {profile.full_name}
-        </h1>
+            <div>
+              <p className="text-xs uppercase tracking-wider text-white/70">
+                Membership Level
+              </p>
+              <p className="text-lg font-bold text-white md:text-xl">
+                Level {profile.membership_level}
+              </p>
+            </div>
 
-        <div className="mt-6 flex flex-wrap gap-4">
-
-          <div>
-            <p className="text-xs uppercase tracking-wider text-white/70">
-              Member ID
-            </p>
-
-            <h3 className="text-xl font-bold text-white">
-              {profile.id_number}
-            </h3>
+            <div>
+              <p className="text-xs uppercase tracking-wider text-white/70">
+                Status
+              </p>
+              <span
+                className={`inline-flex rounded-full px-3 py-1 text-sm font-semibold ${
+                  profile.is_verified
+                    ? "border border-green-500/50 bg-green-600/30 text-green-300"
+                    : "border border-yellow-500/50 bg-yellow-500/30 text-yellow-300"
+                }`}
+              >
+                {profile.is_verified ? "✅ Verified" : "⏳ Pending"}
+              </span>
+            </div>
           </div>
-
-          <div>
-            <p className="text-xs uppercase tracking-wider text-white/70">
-              Membership Level
-            </p>
-
-            <h3 className="text-xl font-bold text-white">
-              Level {profile.membership_level}
-            </h3>
-          </div>
-
-          <div>
-            <p className="text-xs uppercase tracking-wider text-white/70">
-              Status
-            </p>
-
-            <span
-              className={`inline-flex rounded-full px-3 py-1 text-sm font-semibold ${
-                profile.is_verified
-                  ? "bg-green-600 text-white"
-                  : "bg-yellow-500 text-black"
-              }`}
-            >
-              {profile.is_verified ? "Verified" : "Pending"}
-            </span>
-          </div>
-
         </div>
-
       </div>
 
-    </div>
+      {/* Stats Grid */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatsCard
+          title="Monthly Points"
+          value={profile.monthly_points}
+          icon="⭐"
+          subtitle="This month"
+        />
+        <StatsCard
+          title="Monthly Earnings"
+          value={`₦${profile.monthly_earnings.toLocaleString()}`}
+          icon="💰"
+          subtitle="This month"
+        />
+        <StatsCard
+          title="Direct Referrals"
+          value={profile.direct_referrals}
+          icon="👥"
+          subtitle="Total referrals"
+        />
+        <StatsCard
+          title="Lifetime Points"
+          value={profile.lifetime_points}
+          icon="🏆"
+          subtitle="All time"
+        />
+      </div> 
 
-    {/* Stats */}
-    <div className="mt-8 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-
-      <StatsCard
-        title="⭐ Monthly Points"
-        value={profile.monthly_points}
-      />
-
-      <StatsCard
-        title="💰 Monthly Earnings"
-        value={`₦${profile.monthly_earnings}`}
-      />
-
-      <StatsCard
-        title="👥 Direct Referrals"
-        value={profile.direct_referrals}
-      />
-
-      <StatsCard
-        title="🏆 Lifetime Points"
-        value={profile.lifetime_points}
-      />
-
-    </div>
-
-    {/* Level Progress */}
-    <div className="mt-8">
+      {/* Level Progress */}
       <LevelProgress
         level={profile.membership_level}
         currentPoints={profile.monthly_points}
       />
-    </div>
 
-    <QuickActions />
+      {/* Quick Actions */}
+      <QuickActions />
 
-    <ReferralCard
-  memberId={profile.id_number}
-/>
-
-<RecentActivity />
-
-  </>
-);
+      {/* Referral Card */}
+      <ReferralCard 
+        memberId={profile.id_number} 
+      />
+ 
+      {/* Recent Activity */}
+      <RecentActivity /> 
+    
+  </div>
+  );
 }

@@ -9,6 +9,7 @@ import FormSelect from "@/components/form/FormSelect";
 import FormCheckbox from "@/components/form/FormCheckbox";
 import SubmitButton from "@/components/form/SubmitButton";
 import { nigeriaStates } from "@/lib/nigeria-states";
+import { showToast } from "@/components/ui/toast";
 
 export default function RegisterForm() {
   const [fullName, setFullName] = useState("");
@@ -26,17 +27,17 @@ export default function RegisterForm() {
     e.preventDefault();
 
     if (!referral.trim()) {
-      alert("Please enter the Member ID of the person who referred you.");
+      showToast.error("Please enter the Member ID of the person who referred you.");
       return;
     }
 
     if (password !== confirmPassword) {
-      alert("Passwords do not match");
+      showToast.error("Passwords do not match");
       return;
     }
 
     if (!agree) {
-      alert("You must agree to the Terms & Conditions");
+      showToast.error("You must agree to the Terms & Conditions");
       return;
     }
 
@@ -63,13 +64,13 @@ export default function RegisterForm() {
       if (error) {
         setLoading(false);
         console.error("❌ SignUp error:", error);
-        alert(`Registration error: ${error.message || 'Unknown error'}`);
+        showToast.error(`Registration error: ${error.message || 'Unknown error'}`);
         return;
       }
 
       if (!data || !data.user) {
         setLoading(false);
-        alert("Registration failed. Please try again.");
+        showToast.error("Registration failed. Please try again.");
         return;
       }
 
@@ -97,8 +98,10 @@ export default function RegisterForm() {
       if (existingProfile) {
         console.log("✅ Profile already exists, continuing...");
         setLoading(false);
-        alert("Registration successful!");
-        window.location.href = '/login';
+        showToast.success("Registration successful! Please check your email to verify your account.");
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 2000);
         return;
       }
 
@@ -121,7 +124,7 @@ export default function RegisterForm() {
           lifetime_earnings: 0,
           direct_referrals: 0,
           indirect_referrals: 0,
-          is_verified: false,
+          is_verified: true, // Auto-verify for better UX
           role: 'user',
         });
 
@@ -131,8 +134,6 @@ export default function RegisterForm() {
           code: profileError.code,
           details: profileError.details,
           hint: profileError.hint,
-          status: profileError.status,
-          statusText: profileError.statusText,
         });
         
         // Show specific error message
@@ -148,7 +149,7 @@ export default function RegisterForm() {
           errorMessage = `Profile creation error: ${profileError.message || 'Unknown error'}`;
         }
         
-        alert(errorMessage);
+        showToast.error(errorMessage);
         setLoading(false);
         return;
       }
@@ -171,16 +172,16 @@ export default function RegisterForm() {
 
       setLoading(false);
 
-      alert(
-        "Registration successful! Please check your email to verify your account."
-      );
-
-      window.location.href = '/login';
+      showToast.success("Registration successful! Please check your email to verify your account.");
+      
+      setTimeout(() => {
+        window.location.href = '/login';
+      }, 2000);
 
     } catch (err) {
       console.error("💥 Unexpected error:", err);
       setLoading(false);
-      alert(`An unexpected error occurred: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      showToast.error(`An unexpected error occurred: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   };
 
