@@ -4,27 +4,16 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { showToast } from "@/components/ui/toast";
 import CartItem from "./CartItem";
-import { ShoppingCart, RefreshCw } from "lucide-react";
-
-type CartItemType = {
-  id: string;
-  quantity: number;
-  products: {
-    id: string;
-    name: string;
-    price: number;
-    image_url: string | null;
-    stock: number;
-    points: number;
-  };
-};
+import { RefreshCw } from "lucide-react";
+import { CartItemWithProduct } from "@/types/database";
 
 export default function CartList() {
-  const [items, setItems] = useState<CartItemType[]>([]);
+  const [items, setItems] = useState<CartItemWithProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const isMountedRef = useRef(true);
+  const isFirstLoadRef = useRef(true);
 
   const loadCart = useCallback(async (showRefresh = false) => {
     if (showRefresh) {
@@ -87,10 +76,19 @@ export default function CartList() {
         return;
       }
 
+      // ✅ Debug: Log the actual data structure
+      console.log("📦 Raw cart data:", JSON.stringify(data, null, 2));
+      console.log("📦 Data type:", typeof data);
+      console.log("📦 Is array?", Array.isArray(data));
+      if (data && data.length > 0) {
+        console.log("📦 First item:", data[0]);
+        console.log("📦 First item products:", data[0].products);
+        console.log("📦 Products is array?", Array.isArray(data[0].products));
+      }
+
       if (isMountedRef.current) {
-        setItems(data || []);
-        // Only dispatch event if items changed
-        window.dispatchEvent(new Event("cartUpdated"));
+        setItems(data as CartItemWithProduct[] || []);
+        isFirstLoadRef.current = false;
       }
     } catch (error) {
       console.error("Error loading cart:", error);
@@ -105,11 +103,13 @@ export default function CartList() {
 
   useEffect(() => {
     isMountedRef.current = true;
+    isFirstLoadRef.current = true;
     loadCart();
 
-    // Listen for cart updates from other components
     const handleCartUpdate = () => {
-      loadCart(true);
+      if (isMountedRef.current) {
+        loadCart(true);
+      }
     };
 
     window.addEventListener("cartUpdated", handleCartUpdate);
@@ -129,14 +129,12 @@ export default function CartList() {
 
       if (error) throw error;
 
-      // Update local state
       setItems((prev) =>
         prev.map((item) =>
           item.id === itemId ? { ...item, quantity: newQuantity } : item
         )
       );
 
-      // Only dispatch once after update
       window.dispatchEvent(new Event("cartUpdated"));
       showToast.success("Quantity updated");
     } catch (error) {
@@ -156,7 +154,6 @@ export default function CartList() {
 
       setItems((prev) => prev.filter((item) => item.id !== itemId));
       
-      // Only dispatch once after removal
       window.dispatchEvent(new Event("cartUpdated"));
       showToast.success(`${productName} removed from cart`);
     } catch (error) {
@@ -165,7 +162,6 @@ export default function CartList() {
     }
   };
 
-  // Manual refresh handler
   const handleRefresh = () => {
     loadCart(true);
   };
@@ -205,7 +201,6 @@ export default function CartList() {
 
   return (
     <div className="space-y-4">
-      {/* Cart Header with Refresh */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-slate-400">
           {items.length} item{items.length > 1 ? "s" : ""} in your cart
@@ -220,7 +215,6 @@ export default function CartList() {
         </button>
       </div>
 
-      {/* Cart Items */}
       {items.map((item) => (
         <CartItem
           key={item.id}

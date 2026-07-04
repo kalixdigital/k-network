@@ -23,7 +23,6 @@ export default function UploadReceipt({ onUploaded }: Props) {
     const file = e.target.files?.[0];
 
     if (!file) {
-      // Reset the input if no file
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -75,7 +74,6 @@ export default function UploadReceipt({ onUploaded }: Props) {
           showToast.error(error.message || "Failed to upload receipt");
         }
         setUploading(false);
-        // Reset the input
         if (fileInputRef.current) {
           fileInputRef.current.value = "";
         }
@@ -109,7 +107,6 @@ export default function UploadReceipt({ onUploaded }: Props) {
   const removeFile = () => {
     setFileName("");
     setUploaded(false);
-    // Reset the file input
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -118,22 +115,13 @@ export default function UploadReceipt({ onUploaded }: Props) {
     }
   };
 
-  // Get file icon based on type
-  const getFileIcon = () => {
-    const ext = fileName.split('.').pop()?.toLowerCase() || '';
-    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
-      return <Image className="h-5 w-5 text-emerald-400" />;
-    }
-    return <File className="h-5 w-5 text-emerald-400" />;
-  };
-
-  // Handle drag and drop
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+  // ✅ Fix: Use React.DragEvent<HTMLLabelElement>
+  const handleDragOver = (e: React.DragEvent<HTMLLabelElement>) => {
     e.preventDefault();
     e.stopPropagation();
   };
 
-  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = (e: React.DragEvent<HTMLLabelElement>) => {
     e.preventDefault();
     e.stopPropagation();
     
@@ -148,6 +136,15 @@ export default function UploadReceipt({ onUploaded }: Props) {
       input.files = dataTransfer.files;
       input.dispatchEvent(new Event('change', { bubbles: true }));
     }
+  };
+
+  // Get file icon based on type
+  const getFileIcon = () => {
+    const ext = fileName.split('.').pop()?.toLowerCase() || '';
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
+      return <Image className="h-5 w-5 text-emerald-400" />;
+    }
+    return <File className="h-5 w-5 text-emerald-400" />;
   };
 
   return (
@@ -176,7 +173,6 @@ export default function UploadReceipt({ onUploaded }: Props) {
               onChange={uploadReceipt}
               onClick={(e) => {
                 e.stopPropagation();
-                // Reset the input value to allow re-uploading the same file
                 if (fileInputRef.current) {
                   fileInputRef.current.value = "";
                 }

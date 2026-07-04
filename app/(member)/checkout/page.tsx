@@ -21,19 +21,28 @@ export default function CheckoutPage() {
 
         if (!user) return;
 
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from("cart_items")
           .select(`
             quantity,
-            products(price)
+            products!inner (
+              price
+            )
           `)
           .eq("user_id", user.id);
 
-        if (data) {
-          const total = data.reduce(
-            (sum, item) => sum + item.products.price * item.quantity,
-            0
-          );
+        if (error) {
+          console.error("Error loading cart:", error);
+          return;
+        }
+
+        if (data && data.length > 0) {
+          const total = data.reduce((sum: number, item: any) => {
+            // Use optional chaining with array access
+            const product = item.products?.[0];
+            const price = product?.price || 0;
+            return sum + price * item.quantity;
+          }, 0);
           setTotalAmount(total);
         }
       } catch (error) {
@@ -52,7 +61,6 @@ export default function CheckoutPage() {
   return (
     <div className="min-h-screen">
       <div className="space-y-6">
-        {/* Page Header */}
         <div>
           <h1 className="text-3xl font-bold text-white md:text-4xl">
             Checkout
@@ -62,17 +70,29 @@ export default function CheckoutPage() {
           </p>
         </div>
 
-        {/* Order Summary - Full Width at Top */}
-        <div className="max-w-3xl mx-auto">
+        <div className="lg:hidden">
           <OrderSummary />
         </div>
 
-        {/* Checkout Form - Full Width */}
-        <div className="max-w-3xl mx-auto space-y-6">
-          <BankDetails />
-          <PaymentInstructions totalAmount={totalAmount} />
-          <UploadReceipt onUploaded={handleReceiptUpload} />
-          <SubmitOrderButton receiptPath={receiptPath} />
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="space-y-6 lg:col-span-2">
+            <div className="hidden lg:block">
+              <OrderSummary />
+            </div>
+
+            <BankDetails />
+            <PaymentInstructions totalAmount={totalAmount} />
+            <UploadReceipt onUploaded={handleReceiptUpload} />
+            <div className="lg:hidden">
+              <SubmitOrderButton receiptPath={receiptPath} />
+            </div>
+          </div>
+
+          <div className="hidden lg:block">
+            <div className="sticky top-24 space-y-6">
+              <SubmitOrderButton receiptPath={receiptPath} />
+            </div>
+          </div>
         </div>
       </div>
     </div>

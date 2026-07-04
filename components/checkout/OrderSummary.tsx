@@ -4,19 +4,10 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { showToast } from "@/components/ui/toast";
 import { Award, Copy, Check } from "lucide-react";
-
-type CartItem = {
-  quantity: number;
-  products: {
-    id: string;
-    name: string;
-    price: number;
-    points: number;
-  };
-};
+import { OrderSummaryItem, getFirstProduct } from "@/types/database";
 
 export default function OrderSummary() {
-  const [items, setItems] = useState<CartItem[]>([]);
+  const [items, setItems] = useState<OrderSummaryItem[]>([]);
   const [total, setTotal] = useState(0);
   const [totalPoints, setTotalPoints] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -42,11 +33,13 @@ export default function OrderSummary() {
           .from("cart_items")
           .select(`
             quantity,
-            products(
+            products (
               id,
               name,
               price,
-              points
+              points,
+              image_url,
+              stock
             )
           `)
           .eq("user_id", user.id);
@@ -61,14 +54,19 @@ export default function OrderSummary() {
           return;
         }
 
-        setItems(data);
+        // ✅ Cast safely using 'as unknown as'
+        const cartItems = (data ?? []) as unknown as OrderSummaryItem[];
+        setItems(cartItems);
 
         let sum = 0;
         let points = 0;
 
-        data.forEach((item: any) => {
-          sum += Number(item.products.price) * item.quantity;
-          points += Number(item.products.points || 0) * item.quantity;
+        cartItems.forEach((item) => {
+          const product = getFirstProduct(item);
+          if (product) {
+            sum += product.price * item.quantity;
+            points += product.points * item.quantity;
+          }
         });
 
         setTotal(sum);
@@ -118,20 +116,25 @@ export default function OrderSummary() {
       <h2 className="text-2xl font-bold text-white">Order Summary</h2>
 
       <div className="mt-6 space-y-4">
-        {items.map((item: any, index) => (
-          <div key={index} className="flex justify-between border-b border-slate-800 pb-4">
-            <div>
-              <p className="font-medium text-white">{item.products.name}</p>
-              <p className="text-sm text-slate-400">Qty: {item.quantity}</p>
-              <p className="text-xs text-yellow-400">
-                +{item.products.points * item.quantity} pts
+        {items.map((item, index) => {
+          const product = getFirstProduct(item);
+          if (!product) return null;
+          
+          return (
+            <div key={index} className="flex justify-between border-b border-slate-800 pb-4">
+              <div>
+                <p className="font-medium text-white">{product.name}</p>
+                <p className="text-sm text-slate-400">Qty: {item.quantity}</p>
+                <p className="text-xs text-yellow-400">
+                  +{product.points * item.quantity} pts
+                </p>
+              </div>
+              <p className="font-bold text-emerald-400">
+                ₦{(product.price * item.quantity).toLocaleString()}
               </p>
             </div>
-            <p className="font-bold text-emerald-400">
-              ₦{(item.products.price * item.quantity).toLocaleString()}
-            </p>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="mt-6 space-y-3 border-t border-slate-700 pt-6">

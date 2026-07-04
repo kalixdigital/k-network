@@ -1,6 +1,7 @@
 import { Metadata } from "next";
 import CartList from "@/components/cart/CartList";
 import CartSummary from "@/components/cart/CartSummary";
+import CheckoutButton from "@/components/cart/CheckoutButton";
 
 export const metadata: Metadata = {
   title: "Shopping Cart | K-NETWORK",
@@ -25,9 +26,14 @@ export default function CartPage() {
         <div className="grid gap-8 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <CartList />
+
           </div>
           <div>
             <CartSummary />
+                        {/* Optional: Add checkout button below cart on mobile */}
+            <div className="mt-6 lg:hidden">
+              <CheckoutButton />
+            </div>
           </div>
         </div>
       </div>

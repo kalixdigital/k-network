@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, Check } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { showToast } from "@/components/ui/toast";
+import { OrderSummaryItem, getFirstProduct } from "@/types/database";
 
 type Props = {
   receiptPath: string;
@@ -23,7 +24,6 @@ export default function SubmitOrderButton({ receiptPath }: Props) {
     setLoading(true);
 
     try {
-      // Get logged-in user
       const {
         data: { user },
         error: userError,
@@ -36,7 +36,6 @@ export default function SubmitOrderButton({ receiptPath }: Props) {
         return;
       }
 
-      // Get user profile
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("id_number")
@@ -50,13 +49,12 @@ export default function SubmitOrderButton({ receiptPath }: Props) {
         return;
       }
 
-      // Get cart items
       const { data: cart, error: cartError } = await supabase
         .from("cart_items")
         .select(`
           id,
           quantity,
-          products(
+          products (
             id,
             name,
             price,
@@ -78,18 +76,23 @@ export default function SubmitOrderButton({ receiptPath }: Props) {
         return;
       }
 
+      // ✅ Use OrderSummaryItem type instead of CartItemWithProduct
+      const cartItems = (cart ?? []) as unknown as OrderSummaryItem[];
+
       // Calculate totals
       let total = 0;
       let totalPoints = 0;
 
-      cart.forEach((item: any) => {
-        total += item.products.price * item.quantity;
-        totalPoints += (item.products.points || 0) * item.quantity;
+      cartItems.forEach((item) => {
+        const product = getFirstProduct(item);
+        if (product) {
+          total += product.price * item.quantity;
+          totalPoints += product.points * item.quantity;
+        }
       });
 
       const orderNumber = `ORD-${Date.now().toString().slice(-8)}`;
 
-      // Create order
       const { data: order, error: orderError } = await supabase
         .from("orders")
         .insert({
@@ -113,13 +116,16 @@ export default function SubmitOrderButton({ receiptPath }: Props) {
       }
 
       // Create order items
-      const orderItems = cart.map((item: any) => ({
-        order_id: order.id,
-        product_id: item.products.id,
-        quantity: item.quantity,
-        price: item.products.price,
-        points_earned: (item.products.points || 0) * item.quantity,
-      }));
+      const orderItems = cartItems.map((item) => {
+        const product = getFirstProduct(item);
+        return {
+          order_id: order.id,
+          product_id: product?.id || '',
+          quantity: item.quantity,
+          price: product?.price || 0,
+          points_earned: (product?.points || 0) * item.quantity,
+        };
+      });
 
       const { error: itemsError } = await supabase
         .from("order_items")
@@ -133,19 +139,13 @@ export default function SubmitOrderButton({ receiptPath }: Props) {
       }
 
       // Clear cart
-      const { error: deleteError } = await supabase
+      await supabase
         .from("cart_items")
         .delete()
         .eq("user_id", user.id);
 
-      if (deleteError) {
-        console.error("Clear cart error:", deleteError);
-      }
-
-      // ✅ Dispatch event to update cart count everywhere
       window.dispatchEvent(new Event("cartUpdated"));
 
-      // Create activity log
       try {
         await supabase
           .from("activities")

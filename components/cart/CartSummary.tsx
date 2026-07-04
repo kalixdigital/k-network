@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase/client";
-import { Award, ShoppingBag, TrendingUp } from "lucide-react";
-import CheckoutButton from "./CheckoutButton";
+import { showToast } from "@/components/ui/toast";
+import { Award, ShoppingBag } from "lucide-react";
+import { OrderSummaryItem, getFirstProduct } from "@/types/database";
 
 type CartSummaryType = {
   subtotal: number;
@@ -12,16 +13,22 @@ type CartSummaryType = {
 };
 
 export default function CartSummary() {
+  const [items, setItems] = useState<OrderSummaryItem[]>([]);
   const [summary, setSummary] = useState<CartSummaryType>({
     subtotal: 0,
     totalPoints: 0,
     itemCount: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [isUpdating, setIsUpdating] = useState(false);
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isMountedRef = useRef(true);
 
-  const loadCartSummary = useCallback(async () => {
+  const loadCartSummary = useCallback(async (showLoading = true) => {
+    if (showLoading) {
+      setIsUpdating(true);
+    }
+
     try {
       const {
         data: { user },
@@ -29,8 +36,10 @@ export default function CartSummary() {
 
       if (!user) {
         if (isMountedRef.current) {
+          setItems([]);
           setSummary({ subtotal: 0, totalPoints: 0, itemCount: 0 });
           setLoading(false);
+          setIsUpdating(false);
         }
         return;
       }
@@ -38,10 +47,15 @@ export default function CartSummary() {
       const { data, error } = await supabase
         .from("cart_items")
         .select(`
+          id,
           quantity,
           products (
+            id,
+            name,
             price,
-            points
+            points,
+            image_url,
+            stock
           )
         `)
         .eq("user_id", user.id);
@@ -50,29 +64,40 @@ export default function CartSummary() {
 
       if (!data || data.length === 0) {
         if (isMountedRef.current) {
+          setItems([]);
           setSummary({ subtotal: 0, totalPoints: 0, itemCount: 0 });
         }
+        setLoading(false);
+        setIsUpdating(false);
         return;
       }
 
-      const subtotal = data.reduce(
-        (sum, item) => sum + item.products.price * item.quantity,
-        0
-      );
-      const totalPoints = data.reduce(
-        (sum, item) => sum + item.products.points * item.quantity,
-        0
-      );
-      const itemCount = data.reduce((sum, item) => sum + item.quantity, 0);
+      const cartItems = (data ?? []) as OrderSummaryItem[];
+      
+      let subtotal = 0;
+      let totalPoints = 0;
+      let itemCount = 0;
+
+      cartItems.forEach((item) => {
+        const product = getFirstProduct(item);
+        if (product) {
+          subtotal += product.price * item.quantity;
+          totalPoints += product.points * item.quantity;
+          itemCount += item.quantity;
+        }
+      });
 
       if (isMountedRef.current) {
+        setItems(cartItems);
         setSummary({ subtotal, totalPoints, itemCount });
       }
     } catch (error) {
       console.error("Error loading cart summary:", error);
+      showToast.error("Failed to load cart summary");
     } finally {
       if (isMountedRef.current) {
         setLoading(false);
+        setIsUpdating(false);
       }
     }
   }, []);
@@ -84,7 +109,7 @@ export default function CartSummary() {
     }
 
     updateTimeoutRef.current = setTimeout(() => {
-      loadCartSummary();
+      loadCartSummary(true);
     }, 300);
   }, [loadCartSummary]);
 
@@ -92,7 +117,7 @@ export default function CartSummary() {
     isMountedRef.current = true;
     
     // Initial load
-    loadCartSummary();
+    loadCartSummary(true);
 
     // Listen for cart updates
     const handleCartUpdate = () => {
@@ -110,13 +135,12 @@ export default function CartSummary() {
     };
   }, [loadCartSummary, reloadSummary]);
 
-  // Only show loading on initial load
+  // Show loading only on initial load
   if (loading) {
     return (
       <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
-        <div className="text-center">
-          <ShoppingBag className="mx-auto h-12 w-12 text-slate-600" />
-          <h3 className="mt-3 text-lg font-semibold text-white">Loading cart...</h3>
+        <div className="flex items-center justify-center py-8">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-400 border-t-transparent" />
         </div>
       </div>
     );
@@ -135,48 +159,54 @@ export default function CartSummary() {
   }
 
   return (
-    <div className="sticky top-24 rounded-2xl border border-slate-800 bg-slate-900/50 p-6 backdrop-blur">
-      <h2 className="text-xl font-bold text-white">Order Summary</h2>
+    <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6 backdrop-blur">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-white">Order Summary</h2>
+        {isUpdating && (
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent" />
+        )}
+      </div>
 
       <div className="mt-6 space-y-4">
-        <div className="flex justify-between text-sm">
+        {items.map((item, index) => {
+          const product = getFirstProduct(item);
+          if (!product) return null;
+          
+          return (
+            <div key={index} className="flex justify-between border-b border-slate-800 pb-4">
+              <div>
+                <p className="font-medium text-white">{product.name}</p>
+                <p className="text-sm text-slate-400">Qty: {item.quantity}</p>
+                <p className="text-xs text-yellow-400">
+                  +{product.points * item.quantity} pts
+                </p>
+              </div>
+              <p className="font-bold text-emerald-400">
+                ₦{(product.price * item.quantity).toLocaleString()}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mt-6 space-y-3 border-t border-slate-700 pt-6">
+        <div className="flex justify-between">
           <span className="text-slate-400">Subtotal</span>
-          <span className="text-white">
+          <span className="text-white">₦{summary.subtotal.toLocaleString()}</span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-slate-400">Points Earned</span>
+          <span className="flex items-center gap-1 text-yellow-400">
+            <Award className="h-4 w-4" />
+            +{summary.totalPoints}
+          </span>
+        </div>
+        <div className="flex justify-between border-t border-slate-700 pt-3">
+          <span className="text-lg font-bold text-white">Total</span>
+          <span className="text-2xl font-bold text-emerald-400">
             ₦{summary.subtotal.toLocaleString()}
           </span>
         </div>
-
-        <div className="flex justify-between text-sm">
-          <span className="text-slate-400">Items</span>
-          <span className="text-white">{summary.itemCount}</span>
-        </div>
-
-        <div className="flex items-center justify-between border-t border-slate-800 pt-4">
-          <div>
-            <span className="text-sm text-slate-400">Total Points</span>
-            <div className="flex items-center gap-1 text-yellow-400">
-              <Award className="h-4 w-4" />
-              <span className="font-bold">{summary.totalPoints}</span>
-            </div>
-          </div>
-          <div className="text-right">
-            <span className="text-sm text-slate-400">Total</span>
-            <p className="text-2xl font-bold text-emerald-400">
-              ₦{summary.subtotal.toLocaleString()}
-            </p>
-          </div>
-        </div>
-
-        <div className="rounded-xl bg-emerald-500/10 p-3">
-          <p className="flex items-center justify-center gap-2 text-center text-sm text-emerald-400">
-            <TrendingUp className="h-4 w-4" />
-            Earn {summary.totalPoints} points with this purchase!
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-6">
-        <CheckoutButton />
       </div>
     </div>
   );

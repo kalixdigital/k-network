@@ -4,20 +4,10 @@ import { useState } from "react";
 import { Minus, Plus, Trash2, Award } from "lucide-react";
 import { showToast } from "@/components/ui/toast";
 import { useConfirmDialogContext } from "@/components/providers/ConfirmDialogProvider";
+import { CartItemWithProduct, getFirstProduct } from "@/types/database";
 
 type Props = {
-  item: {
-    id: string;
-    quantity: number;
-    products: {
-      id: string;
-      name: string;
-      price: number;
-      image_url: string | null;
-      stock: number;
-      points: number;
-    };
-  };
+  item: CartItemWithProduct;
   onQuantityChange: (itemId: string, newQuantity: number) => void;
   onRemove: (itemId: string, productName: string) => void;
 };
@@ -25,14 +15,33 @@ type Props = {
 export default function CartItem({ item, onQuantityChange, onRemove }: Props) {
   const [loading, setLoading] = useState(false);
   const { showConfirm } = useConfirmDialogContext();
-  const product = item.products;
-  const totalPrice = product.price * item.quantity;
-  const totalPoints = product.points * item.quantity;
+  
+  // ✅ Get the first product from the array
+  const product = getFirstProduct(item);
+  
+  // If no product found, show error state
+  if (!product) {
+    return (
+      <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-red-400">
+        Product not found
+      </div>
+    );
+  }
+  
+  // ✅ Safely access product properties with fallbacks
+  const productStock = product.stock ?? 0;
+  const productPrice = product.price ?? 0;
+  const productPoints = product.points ?? 0;
+  const productName = product.name || 'Unknown Product';
+  const productImage = product.image_url || null;
+  
+  const totalPrice = productPrice * item.quantity;
+  const totalPoints = productPoints * item.quantity;
 
   const handleQuantityChange = async (newQuantity: number) => {
     if (newQuantity < 1) return;
-    if (newQuantity > product.stock) {
-      showToast.warning(`Only ${product.stock} items available in stock`);
+    if (newQuantity > productStock) {
+      showToast.warning(`Only ${productStock} items available in stock`);
       return;
     }
     setLoading(true);
@@ -41,10 +50,9 @@ export default function CartItem({ item, onQuantityChange, onRemove }: Props) {
   };
 
   const handleRemove = async () => {
-    // Use custom confirm dialog
     const confirmed = await showConfirm({
       title: "Remove Item",
-      message: `Are you sure you want to remove "${product.name}" from your cart?`,
+      message: `Are you sure you want to remove "${productName}" from your cart?`,
       confirmText: "Yes, Remove",
       cancelText: "Cancel",
       type: "danger",
@@ -53,7 +61,7 @@ export default function CartItem({ item, onQuantityChange, onRemove }: Props) {
     if (!confirmed) return;
 
     setLoading(true);
-    await onRemove(item.id, product.name);
+    await onRemove(item.id, productName);
     setLoading(false);
   };
 
@@ -61,10 +69,10 @@ export default function CartItem({ item, onQuantityChange, onRemove }: Props) {
     <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 rounded-2xl border border-slate-800 bg-slate-900/50 p-4 transition hover:border-slate-700">
       {/* Product Image */}
       <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl bg-slate-800">
-        {product.image_url ? (
+        {productImage ? (
           <img
-            src={product.image_url}
-            alt={product.name}
+            src={productImage}
+            alt={productName}
             className="h-full w-full object-cover"
           />
         ) : (
@@ -77,18 +85,18 @@ export default function CartItem({ item, onQuantityChange, onRemove }: Props) {
       {/* Product Info */}
       <div className="flex-1 min-w-0">
         <h3 className="text-lg font-semibold text-white truncate">
-          {product.name}
+          {productName}
         </h3>
         <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
           <span className="text-slate-400">
-            ₦{Number(product.price).toLocaleString()}
+            ₦{Number(productPrice).toLocaleString()}
           </span>
           <span className="flex items-center gap-1 text-yellow-400">
             <Award className="h-3 w-3" />
-            {product.points} pts each
+            {productPoints} pts each
           </span>
-          <span className={`text-xs ${product.stock > 0 ? "text-emerald-400" : "text-red-400"}`}>
-            {product.stock > 0 ? `${product.stock} in stock` : "Out of stock"}
+          <span className={`text-xs ${productStock > 0 ? "text-emerald-400" : "text-red-400"}`}>
+            {productStock > 0 ? `${productStock} in stock` : "Out of stock"}
           </span>
         </div>
       </div>
@@ -113,9 +121,9 @@ export default function CartItem({ item, onQuantityChange, onRemove }: Props) {
 
         <button
           onClick={() => handleQuantityChange(item.quantity + 1)}
-          disabled={loading || item.quantity >= product.stock}
+          disabled={loading || item.quantity >= productStock}
           className={`flex h-8 w-8 items-center justify-center rounded-lg transition ${
-            item.quantity < product.stock && !loading
+            item.quantity < productStock && !loading
               ? "bg-slate-800 text-white hover:bg-slate-700"
               : "cursor-not-allowed bg-slate-800/50 text-slate-500"
           }`}
