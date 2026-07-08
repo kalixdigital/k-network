@@ -32,14 +32,14 @@ export default function SettingsPage() {
     },
     {
       title: "Points Settings",
-      description: "Point value, earning rates, conversion rules",
+      description: "Point value, earning rates, referral bonuses",
       href: "/admin/settings/points",
       icon: Award,
       color: "yellow",
     },
     {
       title: "Membership Settings",
-      description: "Level requirements, upgrade rules, benefits",
+      description: "Membership levels, requirements, and benefits",
       href: "/admin/settings/membership",
       icon: Users,
       color: "purple",

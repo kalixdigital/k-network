@@ -8,13 +8,13 @@ import {
   ArrowLeft,
   CheckCircle,
   XCircle,
-  Clock,
-  Download,
   Eye,
   RefreshCw,
 } from "lucide-react";
 import StatusBadge from "@/components/admin/StatusBadge";
 import ConfirmDialog from "@/components/admin/ConfirmDialog";
+import { activateNewUser } from "@/lib/services/activateNewUser";
+import { processReturningUser } from "@/lib/services/processReturningUser";
 
 type Order = {
   id: string;
@@ -39,6 +39,7 @@ type OrderItem = {
   product?: {
     name: string;
     image_url: string | null;
+    points: number;
   };
 };
 
@@ -63,7 +64,6 @@ export default function OrderDetails({ id }: Props) {
   const loadOrderDetails = async () => {
     setLoading(true);
     try {
-      // Load order
       const { data: orderData, error: orderError } = await supabase
         .from("orders")
         .select("*")
@@ -80,14 +80,14 @@ export default function OrderDetails({ id }: Props) {
 
       setOrder(orderData);
 
-      // Load order items
       const { data: itemsData, error: itemsError } = await supabase
         .from("order_items")
         .select(`
           *,
           product:products (
             name,
-            image_url
+            image_url,
+            points
           )
         `)
         .eq("order_id", id);
@@ -103,10 +103,7 @@ export default function OrderDetails({ id }: Props) {
     }
   };
 
-  const updateOrderStatus = async (
-    status: string,
-    paymentStatus?: string
-  ) => {
+  const updateOrderStatus = async (status: string, paymentStatus?: string) => {
     setUpdating(true);
     try {
       const updates: any = { status };
@@ -122,10 +119,61 @@ export default function OrderDetails({ id }: Props) {
       if (error) throw error;
 
       showToast.success(`Order ${status} successfully`);
-      
-      // If order is completed, award points
+
+      // ✅ Process order completion
       if (status === "completed") {
-        await awardPoints();
+        try {
+          // Check if this is the user's first completed purchase
+          const { data: previousOrders } = await supabase
+            .from("orders")
+            .select("id")
+            .eq("user_id", order?.user_id)
+            .eq("status", "completed")
+            .neq("id", id)
+            .limit(1);
+
+          const isFirstPurchase = !previousOrders || previousOrders.length === 0;
+
+          let result;
+          let isActivation = false;
+
+          if (isFirstPurchase) {
+            // 🎉 FIRST PURCHASE: Activate user + Product points + Direct + Indirect bonuses
+            console.log("🎉 First purchase detected! Activating user...");
+            result = await activateNewUser(order!.user_id, id);
+            isActivation = true;
+          } else {
+            // 📦 SUBSEQUENT PURCHASES: Product points + Direct + Indirect bonuses (every time)
+            console.log("📦 Subsequent purchase - awarding points with referral bonuses...");
+            result = await processReturningUser(order!.user_id, id);
+            isActivation = false;
+          }
+
+          // Show appropriate message
+          if (result.success) {
+            let message = "";
+            
+            if (isActivation) {
+              message = `🎉 User activated! ${result.productPoints} product points awarded.`;
+            } else {
+              message = `✅ Order completed! ${result.productPoints} product points awarded.`;
+            }
+            
+            if (result.directReferralPoints && result.directReferralPoints > 0) {
+              message += ` Direct referrer earned ${result.directReferralPoints} points.`;
+            }
+            if (result.indirectReferralPoints && result.indirectReferralPoints > 0) {
+              message += ` Indirect referrer earned ${result.indirectReferralPoints} points.`;
+            }
+            
+            showToast.success(message);
+          } else {
+            showToast.warning(`Order completed but processing failed: ${result.error}`);
+          }
+        } catch (engineError) {
+          console.error("Points engine error:", engineError);
+          showToast.warning("Order completed but points may not have been awarded");
+        }
       }
 
       loadOrderDetails();
@@ -137,38 +185,6 @@ export default function OrderDetails({ id }: Props) {
       setShowApproveDialog(false);
       setShowRejectDialog(false);
       setShowCompleteDialog(false);
-    }
-  };
-
-  const awardPoints = async () => {
-    try {
-      // Get user profile
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", order?.user_id)
-        .single();
-
-      if (!profile) return;
-
-      // Update user points
-      const updates = {
-        monthly_points: (profile.monthly_points || 0) + (order?.total_points || 0),
-        lifetime_points: (profile.lifetime_points || 0) + (order?.total_points || 0),
-        updated_at: new Date().toISOString(),
-      };
-
-      const { error } = await supabase
-        .from("profiles")
-        .update(updates)
-        .eq("id", order?.user_id);
-
-      if (error) throw error;
-
-      showToast.success(`Awarded ${order?.total_points} points to member`);
-    } catch (error) {
-      console.error("Error awarding points:", error);
-      showToast.error("Failed to award points");
     }
   };
 
@@ -234,7 +250,6 @@ export default function OrderDetails({ id }: Props) {
         </div>
 
         <div className="flex flex-wrap gap-3">
-          {/* Approve Button */}
           {canApprove && (
             <button
               onClick={() => setShowApproveDialog(true)}
@@ -246,7 +261,6 @@ export default function OrderDetails({ id }: Props) {
             </button>
           )}
 
-          {/* Complete Button */}
           {canComplete && (
             <button
               onClick={() => setShowCompleteDialog(true)}
@@ -258,7 +272,6 @@ export default function OrderDetails({ id }: Props) {
             </button>
           )}
 
-          {/* Reject Button */}
           {canReject && (
             <button
               onClick={() => setShowRejectDialog(true)}
@@ -270,7 +283,6 @@ export default function OrderDetails({ id }: Props) {
             </button>
           )}
 
-          {/* Refresh Button */}
           <button
             onClick={loadOrderDetails}
             disabled={updating}
@@ -329,7 +341,6 @@ export default function OrderDetails({ id }: Props) {
 
         {/* Order Summary Sidebar */}
         <div className="space-y-6">
-          {/* Order Summary */}
           <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
             <h2 className="text-xl font-bold text-white">Order Summary</h2>
             <div className="mt-4 space-y-3">
@@ -350,7 +361,6 @@ export default function OrderDetails({ id }: Props) {
             </div>
           </div>
 
-          {/* Customer Info */}
           <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
             <h2 className="text-xl font-bold text-white">Customer</h2>
             <div className="mt-4 space-y-2">
@@ -358,7 +368,6 @@ export default function OrderDetails({ id }: Props) {
             </div>
           </div>
 
-          {/* Payment Proof */}
           {order.payment_proof && (
             <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
               <h2 className="text-xl font-bold text-white">Payment Proof</h2>
@@ -391,7 +400,7 @@ export default function OrderDetails({ id }: Props) {
         onClose={() => setShowCompleteDialog(false)}
         onConfirm={() => updateOrderStatus("completed")}
         title="Complete Order"
-        message={`Are you sure you want to mark order ${order.order_number} as completed? This will award ${order.total_points} points to the member.`}
+        message={`Are you sure you want to mark order ${order.order_number} as completed?`}
         confirmText="Complete"
         cancelText="Cancel"
         type="success"

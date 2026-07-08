@@ -1,5 +1,5 @@
 import { Metadata } from "next";
-import SettingsForm from "@/components/admin/settings/SettingsForm";
+import PointsSettings from "@/components/admin/settings/PointsSettings";
 
 export const metadata: Metadata = {
   title: "Points Settings | Admin | K-NETWORK",
@@ -7,5 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function PointsSettingsPage() {
-  return <SettingsForm section="points" />;
+  return <PointsSettings />;
 }

@@ -1,38 +1,132 @@
 "use client";
 
-import { useState } from "react";
-import AuthHeader from "./AuthHeader";
+import { useState, useEffect, useRef } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
+import { showToast } from "@/components/ui/toast";
+import AuthHeader from "./AuthHeader";
 import FormInput from "@/components/form/FormInput";
 import FormPassword from "@/components/form/FormPassword";
-import FormSelect from "@/components/form/FormSelect";
 import FormCheckbox from "@/components/form/FormCheckbox";
 import SubmitButton from "@/components/form/SubmitButton";
-import { nigeriaStates } from "@/lib/nigeria-states";
-import { showToast } from "@/components/ui/toast";
 
 export default function RegisterForm() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  
+  // Form state - Only essential fields
   const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [referral, setReferral] = useState("");
-  const [country, setCountry] = useState("Nigeria");
-  const [state, setState] = useState("");
+  const [referralName, setReferralName] = useState("");
+  const [referralValid, setReferralValid] = useState<boolean | null>(null);
+  const [checkingReferral, setCheckingReferral] = useState(false);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [agree, setAgree] = useState(false);
   const [loading, setLoading] = useState(false);
+  const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
 
-  const onSubmit = async (e: React.FormEvent) => {
+  // Get referral from URL - THIS STILL WORKS ✅
+  useEffect(() => {
+    const ref = searchParams.get('ref');
+    if (ref) {
+      const cleanRef = ref.toUpperCase().trim();
+      setReferral(cleanRef);
+      validateReferralCode(cleanRef);
+    }
+  }, [searchParams]);
+
+  // Validate referral code using RPC
+  const validateReferralCode = async (code: string): Promise<boolean> => {
+    if (!code || code.length < 3) {
+      setReferralValid(null);
+      setReferralName("");
+      return false;
+    }
+
+    setCheckingReferral(true);
+    
+    try {
+      // Use the RPC function
+      const { data, error } = await supabase.rpc(
+        "validate_member_id",
+        {
+          member_code: code,
+        }
+      );
+
+      if (error) {
+        console.error("Validation error:", error);
+        setReferralValid(false);
+        setReferralName("");
+        return false;
+      }
+
+      if (data && data.id) {
+        setReferralValid(true);
+        setReferralName(data.full_name || data.id_number);
+        return true;
+      }
+
+      setReferralValid(false);
+      setReferralName("");
+      return false;
+      
+    } catch (error) {
+      console.error("Unexpected error:", error);
+      setReferralValid(false);
+      setReferralName("");
+      return false;
+    } finally {
+      setCheckingReferral(false);
+    }
+  };
+
+  const handleReferralChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.toUpperCase().trim();
+    setReferral(value);
+    setReferralValid(null);
+    setReferralName("");
+    
+    if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
+    
+    if (value.length >= 3) {
+      debounceTimeout.current = setTimeout(() => validateReferralCode(value), 500);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Validate fields
+    if (!fullName.trim()) {
+      showToast.error("Please enter your full name");
+      return;
+    }
+
+    if (!email.trim()) {
+      showToast.error("Please enter your email");
+      return;
+    }
+
     if (!referral.trim()) {
-      showToast.error("Please enter the Member ID of the person who referred you.");
+      showToast.error("Please enter the Member ID of the person who referred you");
+      return;
+    }
+
+    if (!referralValid) {
+      showToast.error("Invalid Member ID. Please check and try again.");
       return;
     }
 
     if (password !== confirmPassword) {
       showToast.error("Passwords do not match");
+      return;
+    }
+
+    if (password.length < 6) {
+      showToast.error("Password must be at least 6 characters");
       return;
     }
 
@@ -44,144 +138,65 @@ export default function RegisterForm() {
     setLoading(true);
 
     try {
-      console.log("🔄 Starting registration...");
-      console.log("📧 Email:", email);
-
-      // Register user with Supabase Auth
+      // 1. Create Auth User with metadata (only essential fields)
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
             full_name: fullName,
-            phone,
-            country,
-            state,
+            pending_referral_code: referral.trim(),
           },
         },
       });
 
-      if (error) {
-        setLoading(false);
-        console.error("❌ SignUp error:", error);
-        showToast.error(`Registration error: ${error.message || 'Unknown error'}`);
-        return;
-      }
+      if (error) throw error;
+      if (!data?.user) throw new Error("Registration failed");
 
-      if (!data || !data.user) {
-        setLoading(false);
-        showToast.error("Registration failed. Please try again.");
-        return;
-      }
-
-      console.log("✅ User created:", data.user.id);
-
-      // Generate Member ID
-      const today = new Date();
-      const yy = today.getFullYear().toString().slice(-2);
-      const mm = String(today.getMonth() + 1).padStart(2, "0");
-      const dd = String(today.getDate()).padStart(2, "0");
-
-      const idNumber = `KN-${yy}${mm}${dd}-${Math.floor(
-        100 + Math.random() * 900
-      )}`;
-
-      console.log("🆔 Member ID:", idNumber);
-
-      // Check if profile already exists
-      const { data: existingProfile } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("id", data.user.id)
-        .single();
-
-      if (existingProfile) {
-        console.log("✅ Profile already exists, continuing...");
-        setLoading(false);
-        showToast.success("Registration successful! Please check your email to verify your account.");
-        setTimeout(() => {
-          window.location.href = '/login';
-        }, 2000);
-        return;
-      }
-
-      // Insert profile
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .insert({
-          id: data.user.id,
-          id_number: idNumber,
-          full_name: fullName,
-          phone,
-          email,
-          country,
-          state,
-          referred_by: referral || null,
-          membership_level: 1,
-          monthly_points: 0,
-          lifetime_points: 0,
-          monthly_earnings: 0,
-          lifetime_earnings: 0,
-          direct_referrals: 0,
-          indirect_referrals: 0,
-          is_verified: true, // Auto-verify for better UX
-          role: 'user',
-        });
-
-      if (profileError) {
-        console.error("❌ Profile error details:", {
-          message: profileError.message,
-          code: profileError.code,
-          details: profileError.details,
-          hint: profileError.hint,
-        });
+      // 2. Wait for trigger to create profile
+      let profileCreated = false;
+      let retries = 0;
+      while (!profileCreated && retries < 10) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("id", data.user.id)
+          .maybeSingle();
         
-        // Show specific error message
-        let errorMessage = "Profile creation failed.";
-        
-        if (profileError.code === '23505') {
-          errorMessage = "This profile already exists. Please try again.";
-        } else if (profileError.message?.includes('permission')) {
-          errorMessage = "Permission denied. Please check your RLS policies.";
-        } else if (profileError.code === '42P01') {
-          errorMessage = "The profiles table doesn't exist. Please create it first.";
-        } else {
-          errorMessage = `Profile creation error: ${profileError.message || 'Unknown error'}`;
+        if (profile) {
+          profileCreated = true;
+          break;
         }
-        
-        showToast.error(errorMessage);
-        setLoading(false);
-        return;
+        await new Promise(resolve => setTimeout(resolve, 300));
+        retries++;
       }
 
-      console.log("✅ Profile created successfully");
-
-      // Create activity log
-      try {
-        await supabase
-          .from("activities")
-          .insert({
-            user_id: data.user.id,
-            title: "Account Created",
-            description: "Welcome to K-NETWORK",
-            type: "account",
-          });
-      } catch (activityError) {
-        console.warn("Activity log error:", activityError);
+      if (!profileCreated) {
+        throw new Error("Profile creation timed out. Please try again.");
       }
 
-      setLoading(false);
+      // 3. Update profile with referral code
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({
+          pending_referral_code: referral.trim(),
+          full_name: fullName,
+        })
+        .eq("id", data.user.id);
 
-      showToast.success("Registration successful! Please check your email to verify your account.");
+      if (updateError) throw updateError;
+
+      showToast.success("Account created! Please complete your profile to continue.");
       
       setTimeout(() => {
-        window.location.href = '/login';
+        router.push('/complete-profile');
       }, 2000);
 
-    } catch (err) {
-      console.error("💥 Unexpected error:", err);
+    } catch (error: any) {
+      console.error("Registration error:", error);
+      showToast.error(error.message || "Registration failed. Please try again.");
+    } finally {
       setLoading(false);
-      showToast.error(`An unexpected error occurred: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   };
 
@@ -192,60 +207,75 @@ export default function RegisterForm() {
         description="Join K-NETWORK today."
       />
 
-      <form onSubmit={onSubmit} className="mt-8 space-y-6">
+      <form onSubmit={handleSubmit} className="mt-8 space-y-6">
+        {/* Full Name */}
         <FormInput
           label="Full Name"
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
+          placeholder="Enter your full name"
+          required
         />
 
-        <FormInput
-          label="Phone Number"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-        />
-
+        {/* Email */}
         <FormInput
           label="Email"
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          placeholder="Enter your email address"
+          required
         />
 
-        <FormSelect
-          label="Country"
-          placeholder="Select Country"
-          value={country}
-          onValueChange={setCountry}
-          options={["Nigeria"]}
-        />
-
-        <FormSelect
-          label="State"
-          placeholder="Select State"
-          value={state}
-          onValueChange={setState}
-          options={nigeriaStates}
-        />
-
+        {/* Password */}
         <FormPassword
           label="Password"
           value={password}
           onChange={setPassword}
           showStrength
+          placeholder="Create a password (min 6 characters)"
         />
 
+        {/* Confirm Password */}
         <FormPassword
           label="Confirm Password"
           value={confirmPassword}
           onChange={setConfirmPassword}
+          placeholder="Confirm your password"
         />
 
-        <FormInput
-          label="Referral By"
-          value={referral}
-          onChange={(e) => setReferral(e.target.value)}
-        />
+        {/* Referral Input - With real-time validation */}
+        <div className="space-y-1">
+          <FormInput
+            label="Referral By (Member ID)"
+            value={referral}
+            onChange={handleReferralChange}
+            placeholder="Enter the Member ID of your referrer"
+            className={
+              referralValid === true 
+                ? "border-emerald-500" 
+                : referralValid === false 
+                ? "border-red-500" 
+                : ""
+            }
+          />
+          
+          {checkingReferral && (
+            <p className="text-sm text-yellow-400">⏳ Checking Member ID...</p>
+          )}
+          
+          {referralValid === true && referralName && (
+            <p className="text-sm text-emerald-400">✅ Referred by: {referralName}</p>
+          )}
+          
+          {referralValid === false && referral.length >= 3 && (
+            <p className="text-sm text-red-400">❌ Member ID "{referral}" not found.</p>
+          )}
+          
+          <p className="text-xs text-slate-500">
+            The referral bonus will be awarded after you complete your profile and make your first purchase.
+          </p>
+        </div>
 
         <FormCheckbox
           checked={agree}
@@ -253,17 +283,14 @@ export default function RegisterForm() {
           label="I agree to the Terms & Conditions"
         />
 
-        <SubmitButton loading={loading}>
-          Create Account
+        <SubmitButton loading={loading || checkingReferral}>
+          {checkingReferral ? "Validating Referral..." : "Create Account"}
         </SubmitButton>
 
         <div className="text-center pt-2">
           <p className="text-sm text-slate-400">
             Already have an account?{" "}
-            <a
-              href="/login"
-              className="font-semibold text-emerald-400 hover:text-emerald-300"
-            >
+            <a href="/login" className="font-semibold text-emerald-400 hover:text-emerald-300">
               Sign in
             </a>
           </p>

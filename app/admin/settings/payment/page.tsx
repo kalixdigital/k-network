@@ -1,5 +1,5 @@
 import { Metadata } from "next";
-import SettingsForm from "@/components/admin/settings/SettingsForm";
+import PaymentSettings from "@/components/admin/settings/PaymentSettings";
 
 export const metadata: Metadata = {
   title: "Payment Settings | Admin | K-NETWORK",
@@ -7,5 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function PaymentSettingsPage() {
-  return <SettingsForm section="payment" />;
+  return <PaymentSettings />;
 }

@@ -1,5 +1,5 @@
 import { Metadata } from "next";
-import SettingsForm from "@/components/admin/settings/SettingsForm";
+import SecuritySettings from "@/components/admin/settings/SecuritySettings";
 
 export const metadata: Metadata = {
   title: "Security Settings | Admin | K-NETWORK",
@@ -7,5 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function SecuritySettingsPage() {
-  return <SettingsForm section="security" />;
+  return <SecuritySettings />;
 }
