@@ -8,13 +8,16 @@ import {
   Home, 
   Package, 
   ShoppingBag, 
-  Award,
-  ShoppingCart
+  Users,
+  ShoppingCart,
+  GitBranch
 } from "lucide-react";
+import { getLevel } from "@/lib/constants/levels";
 
 export default function BottomNavigation() {
   const pathname = usePathname();
   const [cartCount, setCartCount] = useState(0);
+  const [userLevel, setUserLevel] = useState(1);
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isMountedRef = useRef(true);
 
@@ -29,12 +32,26 @@ export default function BottomNavigation() {
         return;
       }
 
+      // Get user's membership level for theming
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("membership_level")
+        .eq("id", user.id)
+        .single();
+
+      if (profile) {
+        setUserLevel(profile.membership_level || 1);
+      }
+
       const { data, error } = await supabase
         .from("cart_items")
         .select("quantity")
         .eq("user_id", user.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error("Cart fetch error:", error);
+        return;
+      }
 
       const totalItems = data.reduce((sum, item) => sum + item.quantity, 0);
       if (isMountedRef.current) {
@@ -71,11 +88,16 @@ export default function BottomNavigation() {
     };
   }, [loadCartCount]);
 
+  const levelData = getLevel(userLevel);
+  const activeColor = levelData.textColor;
+  const badgeBg = levelData.bgColor;
+  const badgeText = levelData.textColor;
+
   const navItems = [
     { href: "/dashboard", label: "Home", icon: Home },
     { href: "/products", label: "Products", icon: Package },
     { href: "/cart", label: "Cart", icon: ShoppingCart, showBadge: true },
-    { href: "/rewards", label: "Rewards", icon: Award },
+    { href: "/orders", label: "Orders", icon: ShoppingBag }, // Changed from Genealogy to Orders
   ];
 
   return (
@@ -91,14 +113,14 @@ export default function BottomNavigation() {
               href={item.href}
               className={`relative flex flex-col items-center gap-0.5 px-3 py-1 transition-colors ${
                 isActive
-                  ? "text-emerald-400"
+                  ? activeColor
                   : "text-slate-500 hover:text-slate-300"
               }`}
             >
               <div className="relative">
                 <Icon className="h-5 w-5" />
                 {item.showBadge && cartCount > 0 && (
-                  <span className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-bold text-white animate-in fade-in zoom-in-95 duration-200">
+                  <span className={`absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full ${badgeBg} text-[10px] font-bold text-white animate-in fade-in zoom-in-95 duration-200`}>
                     {cartCount > 9 ? "9+" : cartCount}
                   </span>
                 )}
@@ -111,3 +133,4 @@ export default function BottomNavigation() {
     </nav>
   );
 }
+

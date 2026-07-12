@@ -66,72 +66,76 @@ export default function ConfirmDialog({
 
   if (!isOpen) return null;
 
-  // Update the getTypeStyles function
-const getTypeStyles = () => {
-  switch (type) {
-    case "danger":
-      return {
-        icon: "text-red-500",
-        button: "bg-red-600 hover:bg-red-700",
-        border: "border-red-500/20",
-        iconBg: "bg-red-500/10",
-      };
-    case "warning":
-      return {
-        icon: "text-yellow-500",
-        button: "bg-yellow-600 hover:bg-yellow-700",
-        border: "border-yellow-500/20",
-        iconBg: "bg-yellow-500/10",
-      };
-    case "info":
-      return {
-        icon: "text-blue-500",
-        button: "bg-blue-600 hover:bg-blue-700",
-        border: "border-blue-500/20",
-        iconBg: "bg-blue-500/10",
-      };
-    default:
-      return {
-        icon: "text-blue-500",
-        button: "bg-blue-600 hover:bg-blue-700",
-        border: "border-blue-500/20",
-        iconBg: "bg-blue-500/10",
-      };
-  }
-};
+  const getTypeStyles = () => {
+    switch (type) {
+      case "danger":
+        return {
+          icon: "text-red-500",
+          button: "bg-red-600 hover:bg-red-700 active:bg-red-800",
+          border: "border-red-500/20",
+          iconBg: "bg-red-500/10",
+        };
+      case "warning":
+        return {
+          icon: "text-yellow-500",
+          button: "bg-yellow-600 hover:bg-yellow-700 active:bg-yellow-800",
+          border: "border-yellow-500/20",
+          iconBg: "bg-yellow-500/10",
+        };
+      case "info":
+        return {
+          icon: "text-blue-500",
+          button: "bg-blue-600 hover:bg-blue-700 active:bg-blue-800",
+          border: "border-blue-500/20",
+          iconBg: "bg-blue-500/10",
+        };
+      default:
+        return {
+          icon: "text-blue-500",
+          button: "bg-blue-600 hover:bg-blue-700 active:bg-blue-800",
+          border: "border-blue-500/20",
+          iconBg: "bg-blue-500/10",
+        };
+    }
+  };
 
   const styles = getTypeStyles();
 
   return createPortal(
-    <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[999] flex items-end justify-center p-4 sm:items-center bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
       <div
         ref={dialogRef}
-        className={`relative w-full max-w-md rounded-2xl border ${styles.border} bg-slate-900 p-6 shadow-2xl animate-in zoom-in-95 duration-200`}
+        className={`relative w-full max-w-md rounded-2xl border ${styles.border} bg-slate-900 p-5 shadow-2xl animate-in slide-in-from-bottom-4 sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-200`}
       >
         {/* Close button */}
         <button
           onClick={onClose}
-          className="absolute right-4 top-4 rounded-lg p-1 text-slate-400 transition hover:bg-slate-800 hover:text-white"
+          className="absolute right-3 top-3 rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-800 hover:text-white active:bg-slate-700"
+          aria-label="Close dialog"
         >
-          <X className="h-5 w-5" />
+          <X className="h-4 w-4 sm:h-5 sm:w-5" />
         </button>
 
-        {/* Icon */}
-        <div className="flex items-center gap-4">
-          <div className={`rounded-full bg-slate-800 p-3 ${styles.icon}`}>
-            <AlertTriangle className="h-6 w-6" />
+        {/* Icon & Title - Stacked on mobile, side by side on desktop */}
+        <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-start sm:gap-4">
+          <div className={`rounded-full p-2.5 sm:p-3 ${styles.iconBg} ${styles.icon} flex-shrink-0`}>
+            <AlertTriangle className="h-5 w-5 sm:h-6 sm:w-6" />
           </div>
-          <h3 className="text-xl font-bold text-white">{title}</h3>
+          <div className="text-center sm:text-left">
+            <h3 className="text-lg font-bold text-white sm:text-xl">{title}</h3>
+          </div>
         </div>
 
         {/* Message */}
-        <p className="mt-4 text-slate-400">{message}</p>
+        <p className="mt-3 text-center text-sm text-slate-400 sm:mt-4 sm:text-left sm:text-base">
+          {message}
+        </p>
 
-        {/* Buttons */}
-        <div className="mt-6 flex gap-3">
+        {/* Buttons - Stacked on mobile, side by side on desktop */}
+        <div className="mt-4 flex flex-col gap-2 sm:mt-6 sm:flex-row sm:gap-3">
           <button
             onClick={onClose}
-            className="flex-1 rounded-xl border border-slate-700 px-4 py-2.5 font-medium text-slate-300 transition hover:bg-slate-800"
+            className="order-2 rounded-xl border border-slate-700 px-4 py-3 font-medium text-slate-300 transition hover:bg-slate-800 active:scale-95 sm:order-1 sm:flex-1 sm:py-2.5"
           >
             {cancelText}
           </button>
@@ -140,7 +144,7 @@ const getTypeStyles = () => {
               onConfirm();
               onClose();
             }}
-            className={`flex-1 rounded-xl px-4 py-2.5 font-medium text-white transition active:scale-95 ${styles.button}`}
+            className={`order-1 rounded-xl px-4 py-3 font-medium text-white transition active:scale-95 sm:order-2 sm:flex-1 sm:py-2.5 ${styles.button}`}
           >
             {confirmText}
           </button>

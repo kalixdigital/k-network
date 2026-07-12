@@ -17,6 +17,7 @@ export default function RegisterForm() {
   // Form state - Only essential fields
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [referral, setReferral] = useState("");
   const [referralName, setReferralName] = useState("");
   const [referralValid, setReferralValid] = useState<boolean | null>(null);
@@ -27,7 +28,7 @@ export default function RegisterForm() {
   const [loading, setLoading] = useState(false);
   const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
 
-  // Get referral from URL - THIS STILL WORKS ✅
+  // Get referral from URL
   useEffect(() => {
     const ref = searchParams.get('ref');
     if (ref) {
@@ -48,7 +49,7 @@ export default function RegisterForm() {
     setCheckingReferral(true);
     
     try {
-      // Use the RPC function
+      // Use the RPC function from database
       const { data, error } = await supabase.rpc(
         "validate_member_id",
         {
@@ -110,6 +111,11 @@ export default function RegisterForm() {
       return;
     }
 
+    if (!phone.trim()) {
+      showToast.error("Please enter your phone number");
+      return;
+    }
+
     if (!referral.trim()) {
       showToast.error("Please enter the Member ID of the person who referred you");
       return;
@@ -138,14 +144,15 @@ export default function RegisterForm() {
     setLoading(true);
 
     try {
-      // 1. Create Auth User with metadata (only essential fields)
+      // 1. Create Auth User with metadata
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
             full_name: fullName,
-            pending_referral_code: referral.trim(),
+            phone: phone,
+            referral_code: referral.trim(),
           },
         },
       });
@@ -175,16 +182,28 @@ export default function RegisterForm() {
         throw new Error("Profile creation timed out. Please try again.");
       }
 
-      // 3. Update profile with referral code
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({
-          pending_referral_code: referral.trim(),
-          full_name: fullName,
-        })
-        .eq("id", data.user.id);
+      // 3. Call register_user RPC function
+      const { data: registerResult, error: registerError } = await supabase.rpc(
+        "register_user",
+        {
+          p_user_id: data.user.id,
+          p_full_name: fullName,
+          p_phone: phone,
+          p_email: email,
+          p_country: "Nigeria",
+          p_state: "",
+          p_referral_code: referral.trim(),
+        }
+      );
 
-      if (updateError) throw updateError;
+      if (registerError) {
+        console.error("Register RPC error:", registerError);
+        throw new Error("Failed to complete registration");
+      }
+
+      if (registerResult && registerResult.success === false) {
+        throw new Error(registerResult.error || "Registration failed");
+      }
 
       showToast.success("Account created! Please complete your profile to continue.");
       
@@ -224,6 +243,16 @@ export default function RegisterForm() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="Enter your email address"
+          required
+        />
+
+        {/* Phone */}
+        <FormInput
+          label="Phone Number"
+          type="tel"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          placeholder="Enter your phone number"
           required
         />
 

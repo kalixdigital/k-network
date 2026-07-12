@@ -1,534 +1,534 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase/client";
-import { showToast } from "@/components/ui/toast";
-import {
-  ArrowLeft,
-  User,
-  Mail,
-  Phone,
-  Building2,
-  CreditCard,
-  Smartphone,
-  Bitcoin,
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase/client';
+import { showToast } from '@/components/ui/toast';
+import { Button } from '@/components/ui/button';
+import { format } from 'date-fns';
+import { 
+  ArrowLeft, 
+  User, 
+  Mail, 
+  Calendar, 
+  DollarSign, 
+  Banknote, 
+  Clock,
   CheckCircle,
   XCircle,
-  Clock,
-  RefreshCw,
-  Copy,
-  Check,
-} from "lucide-react";
-import StatusBadge from "@/components/admin/StatusBadge";
-import ConfirmDialog from "@/components/admin/ConfirmDialog";
+  Loader2,
+  AlertCircle
+} from 'lucide-react';
+import Link from 'next/link';
+import { createNotification, NotificationTemplates, getAdminUsers } from '@/lib/services/notificationService';
 
-type Withdrawal = {
+interface WithdrawalDetailsProps {
+  id: string;
+}
+
+interface WithdrawalDetail {
   id: string;
   user_id: string;
-  amount: number;
-  payment_method: string;
-  bank_name: string | null;
-  account_name: string | null;
-  account_number: string | null;
-  mobile_number: string | null;
-  crypto_address: string | null;
-  status: string;
-  notes: string | null;
-  processed_at: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-type UserProfile = {
-  id: string;
   full_name: string;
-  email: string;
-  phone: string;
   id_number: string;
-  membership_level: number;
-  monthly_earnings: number;
-  lifetime_earnings: number;
-};
+  email: string;
+  amount: number;
+  points_deducted: number;
+  payment_method: string;
+  bank_name: string;
+  account_name: string;
+  account_number: string;
+  status: string;
+  notes: string;
+  requested_at: string;
+  processed_at: string;
+  completed_at: string;
+  rejection_reason?: string;
+  metadata: any;
+  profile_bank_name: string;
+  profile_account_number: string;
+  profile_account_name: string;
+}
 
-type Props = {
-  id: string;
-};
-
-export default function WithdrawalDetails({ id }: Props) {
+export default function WithdrawalDetails({ id }: WithdrawalDetailsProps) {
   const router = useRouter();
-  const [withdrawal, setWithdrawal] = useState<Withdrawal | null>(null);
-  const [user, setUser] = useState<UserProfile | null>(null);
+  const [withdrawal, setWithdrawal] = useState<WithdrawalDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [updating, setUpdating] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [showApproveDialog, setShowApproveDialog] = useState(false);
-  const [showRejectDialog, setShowRejectDialog] = useState(false);
-  const [showCompleteDialog, setShowCompleteDialog] = useState(false);
+  const [processing, setProcessing] = useState(false);
+  const [adminId, setAdminId] = useState<string | null>(null);
 
   useEffect(() => {
-    loadWithdrawalDetails();
-  }, [id]);
+    const getAdmin = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setAdminId(user.id);
+      }
+    };
+    getAdmin();
+  }, []);
 
-  const loadWithdrawalDetails = async () => {
-    setLoading(true);
+  useEffect(() => {
+    if (id && adminId !== null) {
+      fetchWithdrawal();
+    }
+  }, [id, adminId]);
+
+  const fetchWithdrawal = async () => {
     try {
-      const { data: withdrawalData, error: withdrawalError } = await supabase
-        .from("withdrawals")
-        .select("*")
-        .eq("id", id)
-        .single();
+      setLoading(true);
+      const { data, error } = await supabase
+        .rpc('admin_get_withdrawal_requests', {
+          p_status: null
+        });
 
-      if (withdrawalError) throw withdrawalError;
-
-      if (!withdrawalData) {
-        showToast.error("Withdrawal not found");
-        router.push("/admin/withdrawals");
-        return;
-      }
-
-      setWithdrawal(withdrawalData);
-
-      const { data: userData, error: userError } = await supabase
-        .from("profiles")
-        .select(`
-          id,
-          full_name,
-          email,
-          phone,
-          id_number,
-          membership_level,
-          monthly_earnings,
-          lifetime_earnings
-        `)
-        .eq("id", withdrawalData.user_id)
-        .single();
-
-      if (userError) {
-        console.error("User fetch error:", userError);
+      if (error) throw error;
+      
+      const found = data?.find((w: any) => w.id === id);
+      if (found) {
+        setWithdrawal(found);
       } else {
-        setUser(userData);
+        showToast.error('Withdrawal not found');
+        router.push('/admin/withdrawals');
       }
-    } catch (error) {
-      console.error("Error loading withdrawal details:", error);
-      showToast.error("Failed to load withdrawal details");
+    } catch (error: any) {
+      console.error('Error fetching withdrawal:', error);
+      showToast.error(error.message || 'Failed to load withdrawal details');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleStatusChange = async (status: string) => {
-    setUpdating(true);
+  // ============================================
+  // SEND NOTIFICATIONS HELPERS
+  // ============================================
+  
+  const sendUserNotification = async (userId: string, title: string, description: string, type: string, metadata: any) => {
     try {
-      const updateData: any = { status };
+      await createNotification({
+        userId,
+        title,
+        description,
+        type: type as any,
+        metadata,
+      });
+      console.log(`✅ User notification sent: ${title}`);
+      return true;
+    } catch (error) {
+      console.error("❌ Failed to send user notification:", error);
+      return false;
+    }
+  };
+
+  const sendAdminNotifications = async (title: string, description: string, metadata: any) => {
+    try {
+      const admins = await getAdminUsers();
       
-      if (status === "approved" || status === "completed") {
-        updateData.processed_at = new Date().toISOString();
+      if (!admins || admins.length === 0) {
+        console.log("⚠️ No admins found to notify");
+        return;
       }
 
-      const { error } = await supabase
-        .from("withdrawals")
-        .update(updateData)
-        .eq("id", id);
+      let successCount = 0;
+      for (const admin of admins) {
+        try {
+          await createNotification({
+            userId: admin.id,
+            title,
+            description,
+            type: "system",
+            metadata,
+          });
+          successCount++;
+        } catch (error) {
+          console.error(`❌ Failed to notify admin ${admin.email}:`, error);
+        }
+      }
+      
+      console.log(`✅ Notified ${successCount} admin(s)`);
+    } catch (error) {
+      console.error("❌ Failed to send admin notifications:", error);
+    }
+  };
+
+  const handleAction = async (action: 'approve' | 'reject' | 'complete') => {
+    if (!adminId || !withdrawal) return;
+
+    setProcessing(true);
+    
+    try {
+      const { data, error } = await supabase
+        .rpc('admin_process_withdrawal', {
+          p_withdrawal_id: withdrawal.id,
+          p_admin_id: adminId,
+          p_action: action,
+          p_rejection_reason: null
+        });
 
       if (error) throw error;
 
-      const statusMessages = {
-        approved: "Withdrawal approved successfully",
-        rejected: "Withdrawal rejected",
-        completed: "Withdrawal marked as completed",
-      };
+      if (data?.success) {
+        showToast.success(data.message || `Withdrawal ${action}d successfully`);
 
-      showToast.success(statusMessages[status as keyof typeof statusMessages] || "Status updated");
-      
-      setShowApproveDialog(false);
-      setShowRejectDialog(false);
-      setShowCompleteDialog(false);
-      loadWithdrawalDetails();
-    } catch (error) {
-      console.error("Error updating withdrawal:", error);
-      showToast.error("Failed to update withdrawal status");
+        // ============================================
+        // SEND NOTIFICATIONS BASED ON ACTION
+        // ============================================
+
+        // 1. WITHDRAWAL APPROVED
+        if (action === 'approve') {
+          // User notification
+          await sendUserNotification(
+            withdrawal.user_id,
+            "Withdrawal Approved! ✅",
+            `Your withdrawal request of ₦${withdrawal.amount.toLocaleString()} has been approved and is being processed.`,
+            "withdrawal",
+            {
+              withdrawal_id: withdrawal.id,
+              amount: withdrawal.amount,
+              status: "approved",
+            }
+          );
+
+          // Admin notification (status update)
+          await sendAdminNotifications(
+            "Withdrawal Approved 💰",
+            `Withdrawal request of ₦${withdrawal.amount.toLocaleString()} from ${withdrawal.full_name} has been approved.`,
+            {
+              withdrawal_id: withdrawal.id,
+              amount: withdrawal.amount,
+              user: withdrawal.full_name,
+              status: "approved",
+            }
+          );
+        }
+
+        // 2. WITHDRAWAL COMPLETED
+        else if (action === 'complete') {
+          // User notification
+          await sendUserNotification(
+            withdrawal.user_id,
+            "Withdrawal Completed! 🎉",
+            `Your withdrawal of ₦${withdrawal.amount.toLocaleString()} has been completed. Please check your account.`,
+            "withdrawal",
+            {
+              withdrawal_id: withdrawal.id,
+              amount: withdrawal.amount,
+              status: "completed",
+            }
+          );
+
+          // Admin notification
+          await sendAdminNotifications(
+            "Withdrawal Completed ✅",
+            `Withdrawal of ₦${withdrawal.amount.toLocaleString()} to ${withdrawal.full_name} has been completed.`,
+            {
+              withdrawal_id: withdrawal.id,
+              amount: withdrawal.amount,
+              user: withdrawal.full_name,
+              status: "completed",
+            }
+          );
+        }
+
+        // 3. WITHDRAWAL REJECTED
+        else if (action === 'reject') {
+          // User notification
+          await sendUserNotification(
+            withdrawal.user_id,
+            "Withdrawal Rejected ❌",
+            `Your withdrawal request of ₦${withdrawal.amount.toLocaleString()} has been rejected. Please contact support for more information.`,
+            "withdrawal",
+            {
+              withdrawal_id: withdrawal.id,
+              amount: withdrawal.amount,
+              status: "rejected",
+            }
+          );
+
+          // Admin notification
+          await sendAdminNotifications(
+            "Withdrawal Rejected ❌",
+            `Withdrawal request of ₦${withdrawal.amount.toLocaleString()} from ${withdrawal.full_name} has been rejected.`,
+            {
+              withdrawal_id: withdrawal.id,
+              amount: withdrawal.amount,
+              user: withdrawal.full_name,
+              status: "rejected",
+            }
+          );
+        }
+
+        await fetchWithdrawal();
+      } else {
+        showToast.error(data?.error || `Failed to ${action} withdrawal`);
+      }
+    } catch (error: any) {
+      console.error('Error processing withdrawal:', error);
+      showToast.error(error.message || 'An error occurred');
     } finally {
-      setUpdating(false);
+      setProcessing(false);
     }
   };
 
-  const copyToClipboard = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      showToast.success("Copied to clipboard!");
-      setTimeout(() => setCopied(false), 3000);
-    } catch (error) {
-      showToast.error("Failed to copy");
-    }
-  };
-
-  const getPaymentMethodIcon = () => {
-    switch (withdrawal?.payment_method) {
-      case "bank":
-        return <Building2 className="h-5 w-5 text-blue-400" />;
-      case "mobile_money":
-        return <Smartphone className="h-5 w-5 text-purple-400" />;
-      case "crypto":
-        return <Bitcoin className="h-5 w-5 text-orange-400" />;
-      default:
-        return <CreditCard className="h-5 w-5 text-slate-400" />;
-    }
-  };
-
-  const getPaymentMethodLabel = () => {
-    switch (withdrawal?.payment_method) {
-      case "bank":
-        return "Bank Transfer";
-      case "mobile_money":
-        return "Mobile Money";
-      case "crypto":
-        return "Cryptocurrency";
-      default:
-        return "Unknown";
-    }
-  };
-
-  const getStatusFlow = () => {
-    const status = withdrawal?.status;
-    const steps = [
-      { key: "pending", label: "Requested", icon: Clock },
-      { key: "approved", label: "Approved", icon: CheckCircle },
-      { key: "completed", label: "Completed", icon: CheckCircle },
-    ];
-
-    const currentIndex = steps.findIndex(s => s.key === status);
-    
-    return steps.map((step, index) => ({
-      ...step,
-      isActive: index <= currentIndex,
-      isCompleted: index < currentIndex,
-      isCurrent: index === currentIndex,
-    }));
+  const getStatusStyles = (status: string) => {
+    const styles: Record<string, string> = {
+      pending: 'bg-yellow-500/20 text-yellow-500',
+      approved: 'bg-blue-500/20 text-blue-500',
+      processing: 'bg-purple-500/20 text-purple-500',
+      completed: 'bg-green-500/20 text-green-500',
+      rejected: 'bg-red-500/20 text-red-500',
+      cancelled: 'bg-gray-500/20 text-gray-500'
+    };
+    return styles[status] || styles.pending;
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-emerald-400 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-slate-400 mt-4">Loading withdrawal details...</p>
-        </div>
+      <div className="flex items-center justify-center py-12">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-400 border-t-transparent" />
       </div>
     );
   }
 
   if (!withdrawal) {
     return (
-      <div className="text-center py-12">
-        <p className="text-slate-400">Withdrawal not found</p>
-        <button
-          onClick={() => router.push("/admin/withdrawals")}
-          className="mt-4 inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-700"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Withdrawals
-        </button>
+      <div className="text-center py-12 px-4">
+        <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
+        <h3 className="text-lg font-semibold text-white">Withdrawal Not Found</h3>
+        <p className="text-sm text-slate-400 mt-1">The withdrawal you're looking for doesn't exist.</p>
+        <Link href="/admin/withdrawals">
+          <Button className="mt-4 bg-emerald-600 hover:bg-emerald-700 text-white">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Withdrawals
+          </Button>
+        </Link>
       </div>
     );
   }
 
-  const canApprove = withdrawal.status === "pending";
-  const canComplete = withdrawal.status === "approved";
-  const canReject = withdrawal.status === "pending" || withdrawal.status === "approved";
-
   return (
-    <div className="w-full max-w-full space-y-6 overflow-hidden">
-      {/* Back Button */}
-      <button
-        onClick={() => router.push("/admin/withdrawals")}
-        className="inline-flex items-center gap-2 text-slate-400 hover:text-white"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to Withdrawals
-      </button>
+    <div className="space-y-4 md:space-y-6">
+      {/* Header - Mobile Responsive */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-2 md:gap-4">
+          <Link href="/admin/withdrawals">
+            <Button variant="ghost" size="sm" className="text-slate-400 hover:text-white px-2 md:px-3">
+              <ArrowLeft className="h-4 w-4 mr-1 md:mr-2" />
+              <span className="hidden xs:inline">Back</span>
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-lg md:text-2xl font-bold text-white">Withdrawal Details</h1>
+            <p className="text-xs md:text-sm text-slate-400 hidden sm:block">View and manage withdrawal request</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 md:gap-3 flex-wrap">
+          <span className={`px-2 md:px-3 py-1 rounded-full text-xs font-medium ${getStatusStyles(withdrawal.status)}`}>
+            {withdrawal.status.charAt(0).toUpperCase() + withdrawal.status.slice(1)}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchWithdrawal}
+            className="border-slate-700 text-slate-400 hover:bg-slate-800 hover:text-white text-xs md:text-sm"
+          >
+            Refresh
+          </Button>
+        </div>
+      </div>
 
-      <div className="grid gap-6 grid-cols-1 lg:grid-cols-3 w-full">
-        {/* Main Content - 2/3 */}
-        <div className="lg:col-span-2 space-y-6 w-full min-w-0">
-          {/* Withdrawal Header */}
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4 md:p-6 w-full overflow-hidden">
-            <div className="flex flex-col sm:flex-row flex-wrap items-start justify-between gap-4">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2 md:gap-3">
-                  <h1 className="text-xl md:text-2xl font-bold text-white truncate">
-                    Withdrawal #{withdrawal.id.slice(0, 8)}
-                  </h1>
-                  <StatusBadge status={withdrawal.status} type="order" />
-                </div>
-                <p className="mt-1 text-sm text-slate-400">
-                  Requested on {new Date(withdrawal.created_at).toLocaleString()}
-                </p>
-                {withdrawal.processed_at && (
-                  <p className="text-sm text-slate-400">
-                    Processed on {new Date(withdrawal.processed_at).toLocaleString()}
-                  </p>
-                )}
-              </div>
-
-              <div className="text-left sm:text-right flex-shrink-0">
-                <p className="text-sm text-slate-400">Amount</p>
-                <p className="text-2xl md:text-3xl font-bold text-emerald-400">
-                  ₦{withdrawal.amount.toLocaleString()}
-                </p>
-              </div>
+      {/* Main Info Grid - Stack on mobile */}
+      <div className="grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-2">
+        {/* Member Info */}
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4 md:p-6">
+          <h3 className="text-xs md:text-sm font-medium text-slate-400 mb-3 md:mb-4 flex items-center gap-2">
+            <User className="h-3 w-3 md:h-4 md:w-4" />
+            Member Information
+          </h3>
+          <div className="space-y-2 md:space-y-3">
+            <div>
+              <p className="text-[10px] md:text-xs text-slate-500">Full Name</p>
+              <p className="text-sm md:text-base text-white font-medium break-words">{withdrawal.full_name}</p>
             </div>
-
-            {/* Status Flow */}
-            <div className="mt-6 w-full overflow-x-auto">
-              <div className="flex items-center gap-2 min-w-[280px]">
-                {getStatusFlow().map((step, index) => (
-                  <div key={step.key} className="flex items-center flex-1 min-w-0">
-                    <div className={`flex items-center gap-1 md:gap-2 ${
-                      step.isActive ? "text-emerald-400" : "text-slate-500"
-                    }`}>
-                      <div className={`flex h-7 w-7 md:h-8 md:w-8 flex-shrink-0 items-center justify-center rounded-full border-2 ${
-                        step.isCompleted ? "border-emerald-500 bg-emerald-500/20" :
-                        step.isCurrent ? "border-emerald-500 bg-emerald-500/20" :
-                        "border-slate-700"
-                      }`}>
-                        {step.isCompleted ? (
-                          <CheckCircle className="h-3 w-3 md:h-4 md:w-4 text-emerald-400" />
-                        ) : (
-                          <step.icon className="h-3 w-3 md:h-4 md:w-4" />
-                        )}
-                      </div>
-                      <span className="text-xs md:text-sm font-medium truncate">{step.label}</span>
-                    </div>
-                    {index < getStatusFlow().length - 1 && (
-                      <div className={`flex-1 h-0.5 mx-1 md:mx-2 ${
-                        step.isCompleted ? "bg-emerald-500" : "bg-slate-700"
-                      }`} />
-                    )}
-                  </div>
-                ))}
-              </div>
+            <div>
+              <p className="text-[10px] md:text-xs text-slate-500">Member ID</p>
+              <p className="text-sm md:text-base text-white font-medium">#{withdrawal.id_number}</p>
+            </div>
+            <div>
+              <p className="text-[10px] md:text-xs text-slate-500">Email</p>
+              <p className="text-sm md:text-base text-white font-medium flex items-center gap-2 break-all">
+                <Mail className="h-3 w-3 md:h-4 md:w-4 text-slate-500 flex-shrink-0" />
+                <span className="break-words">{withdrawal.email}</span>
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] md:text-xs text-slate-500">Requested</p>
+              <p className="text-sm md:text-base text-white font-medium flex items-center gap-2">
+                <Calendar className="h-3 w-3 md:h-4 md:w-4 text-slate-500 flex-shrink-0" />
+                <span className="text-xs md:text-sm">{format(new Date(withdrawal.requested_at), 'PPP pp')}</span>
+              </p>
             </div>
           </div>
+        </div>
 
-          {/* Payment Details */}
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4 md:p-6 w-full overflow-hidden">
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              {getPaymentMethodIcon()}
-              Payment Details
-            </h2>
-
-            <div className="mt-4 grid gap-4 grid-cols-1 sm:grid-cols-2 w-full">
-              <div className="min-w-0">
-                <p className="text-sm text-slate-400">Payment Method</p>
-                <p className="text-white font-medium truncate">{getPaymentMethodLabel()}</p>
-              </div>
-
-              {withdrawal.payment_method === "bank" && (
-                <>
-                  <div className="min-w-0">
-                    <p className="text-sm text-slate-400">Bank Name</p>
-                    <p className="text-white font-medium truncate">{withdrawal.bank_name || "N/A"}</p>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm text-slate-400">Account Name</p>
-                    <p className="text-white font-medium truncate">{withdrawal.account_name || "N/A"}</p>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm text-slate-400">Account Number</p>
-                    <div className="flex items-center gap-2">
-                      <p className="text-white font-mono font-medium truncate">
-                        {withdrawal.account_number || "N/A"}
-                      </p>
-                      {withdrawal.account_number && (
-                        <button
-                          onClick={() => copyToClipboard(withdrawal.account_number!)}
-                          className="p-1 text-slate-400 hover:text-white flex-shrink-0"
-                        >
-                          {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {withdrawal.payment_method === "mobile_money" && (
-                <div className="min-w-0 sm:col-span-2">
-                  <p className="text-sm text-slate-400">Mobile Number</p>
-                  <div className="flex items-center gap-2">
-                    <p className="text-white font-medium truncate">{withdrawal.mobile_number || "N/A"}</p>
-                    {withdrawal.mobile_number && (
-                      <button
-                        onClick={() => copyToClipboard(withdrawal.mobile_number!)}
-                        className="p-1 text-slate-400 hover:text-white flex-shrink-0"
-                      >
-                        {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {withdrawal.payment_method === "crypto" && (
-                <div className="min-w-0 sm:col-span-2">
-                  <p className="text-sm text-slate-400">Wallet Address</p>
-                  <div className="flex items-center gap-2">
-                    <p className="text-white font-mono font-medium text-sm break-all">
-                      {withdrawal.crypto_address || "N/A"}
-                    </p>
-                    {withdrawal.crypto_address && (
-                      <button
-                        onClick={() => copyToClipboard(withdrawal.crypto_address!)}
-                        className="p-1 text-slate-400 hover:text-white flex-shrink-0"
-                      >
-                        {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
+        {/* Withdrawal Info */}
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4 md:p-6">
+          <h3 className="text-xs md:text-sm font-medium text-slate-400 mb-3 md:mb-4 flex items-center gap-2">
+            <DollarSign className="h-3 w-3 md:h-4 md:w-4" />
+            Withdrawal Information
+          </h3>
+          <div className="space-y-2 md:space-y-3">
+            <div>
+              <p className="text-[10px] md:text-xs text-slate-500">Amount</p>
+              <p className="text-xl md:text-2xl font-bold text-emerald-400">
+                ₦{withdrawal.amount.toLocaleString()}
+              </p>
             </div>
-
-            {withdrawal.notes && (
-              <div className="mt-4 pt-4 border-t border-slate-800 w-full">
-                <p className="text-sm text-slate-400">Notes</p>
-                <p className="text-white mt-1 break-words">{withdrawal.notes}</p>
+            <div>
+              <p className="text-[10px] md:text-xs text-slate-500">Points Deducted</p>
+              <p className="text-sm md:text-base text-white font-medium">{withdrawal.points_deducted} points</p>
+            </div>
+            <div>
+              <p className="text-[10px] md:text-xs text-slate-500">Payment Method</p>
+              <p className="text-sm md:text-base text-white font-medium capitalize">{withdrawal.payment_method}</p>
+            </div>
+            {withdrawal.metadata?.month && withdrawal.metadata?.year && (
+              <div>
+                <p className="text-[10px] md:text-xs text-slate-500">Period</p>
+                <p className="text-sm md:text-base text-white font-medium">
+                  {withdrawal.metadata.month}/{withdrawal.metadata.year}
+                </p>
               </div>
             )}
           </div>
         </div>
+      </div>
 
-        {/* Sidebar - 1/3 */}
-        <div className="space-y-6 w-full min-w-0">
-          {/* Member Info */}
-          {user && (
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4 md:p-6 w-full overflow-hidden">
-              <h2 className="text-xl font-bold text-white">Member Information</h2>
-              <div className="mt-4 space-y-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 md:h-12 md:w-12 flex-shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-lg md:text-xl font-bold text-emerald-400">
-                    {user.full_name?.charAt(0) || "U"}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="font-medium text-white truncate">{user.full_name || "N/A"}</p>
-                    <p className="text-sm text-slate-400 truncate">{user.id_number || "N/A"}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 text-sm min-w-0">
-                  <Mail className="h-4 w-4 text-slate-400 flex-shrink-0" />
-                  <span className="text-white truncate">{user.email}</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm min-w-0">
-                  <Phone className="h-4 w-4 text-slate-400 flex-shrink-0" />
-                  <span className="text-white truncate">{user.phone || "N/A"}</span>
-                </div>
-                <div className="pt-3 border-t border-slate-800 flex justify-between">
-                  <span className="text-sm text-slate-400">Level</span>
-                  <span className="text-white font-medium">Level {user.membership_level}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-slate-400">Monthly Earnings</span>
-                  <span className="text-emerald-400">₦{user.monthly_earnings?.toLocaleString() || 0}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-slate-400">Lifetime Earnings</span>
-                  <span className="text-emerald-400">₦{user.lifetime_earnings?.toLocaleString() || 0}</span>
-                </div>
-              </div>
-              <button
-                onClick={() => router.push(`/admin/members/${user.id}`)}
-                className="mt-4 w-full rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 transition hover:bg-slate-800 truncate"
-              >
-                View Member Profile
-              </button>
-            </div>
-          )}
-
-          {/* Actions */}
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4 md:p-6 w-full overflow-hidden">
-            <h2 className="text-xl font-bold text-white">Actions</h2>
-            <div className="mt-4 space-y-3">
-              {canApprove && (
-                <button
-                  onClick={() => setShowApproveDialog(true)}
-                  disabled={updating}
-                  className="w-full rounded-lg bg-emerald-600 px-4 py-3 font-medium text-white transition hover:bg-emerald-700 disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  <CheckCircle className="h-4 w-4 flex-shrink-0" />
-                  Approve Withdrawal
-                </button>
-              )}
-
-              {canComplete && (
-                <button
-                  onClick={() => setShowCompleteDialog(true)}
-                  disabled={updating}
-                  className="w-full rounded-lg bg-blue-600 px-4 py-3 font-medium text-white transition hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  <CheckCircle className="h-4 w-4 flex-shrink-0" />
-                  Mark as Completed
-                </button>
-              )}
-
-              {canReject && (
-                <button
-                  onClick={() => setShowRejectDialog(true)}
-                  disabled={updating}
-                  className="w-full rounded-lg bg-red-600 px-4 py-3 font-medium text-white transition hover:bg-red-700 disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  <XCircle className="h-4 w-4 flex-shrink-0" />
-                  Reject Withdrawal
-                </button>
-              )}
-
-              <button
-                onClick={loadWithdrawalDetails}
-                disabled={updating}
-                className="w-full rounded-lg border border-slate-700 px-4 py-3 font-medium text-slate-300 transition hover:bg-slate-800 disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                <RefreshCw className={`h-4 w-4 flex-shrink-0 ${updating ? "animate-spin" : ""}`} />
-                Refresh
-              </button>
-            </div>
+      {/* Bank Details - Responsive grid */}
+      <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4 md:p-6">
+        <h3 className="text-xs md:text-sm font-medium text-slate-400 mb-3 md:mb-4 flex items-center gap-2">
+          <Banknote className="h-3 w-3 md:h-4 md:w-4" />
+          Bank Details
+        </h3>
+        <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
+          <div>
+            <p className="text-[10px] md:text-xs text-slate-500">Bank Name</p>
+            <p className="text-sm md:text-base text-white font-medium break-words">
+              {withdrawal.bank_name || withdrawal.profile_bank_name || 'N/A'}
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] md:text-xs text-slate-500">Account Name</p>
+            <p className="text-sm md:text-base text-white font-medium break-words">
+              {withdrawal.account_name || withdrawal.profile_account_name || 'N/A'}
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] md:text-xs text-slate-500">Account Number</p>
+            <p className="text-sm md:text-base text-white font-medium break-words">
+              {withdrawal.account_number || withdrawal.profile_account_number || 'N/A'}
+            </p>
           </div>
         </div>
       </div>
 
-      {/* Confirm Dialogs */}
-      <ConfirmDialog
-        isOpen={showApproveDialog}
-        onClose={() => setShowApproveDialog(false)}
-        onConfirm={() => handleStatusChange("approved")}
-        title="Approve Withdrawal"
-        message={`Are you sure you want to approve this withdrawal of ₦${withdrawal.amount.toLocaleString()}?`}
-        confirmText="Approve"
-        cancelText="Cancel"
-        type="success"
-      />
+      {/* Notes & Rejection Reason */}
+      {(withdrawal.notes || withdrawal.rejection_reason) && (
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4 md:p-6">
+          <h3 className="text-xs md:text-sm font-medium text-slate-400 mb-3 md:mb-4">Additional Information</h3>
+          {withdrawal.notes && (
+            <div className="mb-3">
+              <p className="text-[10px] md:text-xs text-slate-500">Notes</p>
+              <p className="text-sm md:text-base text-white break-words">{withdrawal.notes}</p>
+            </div>
+          )}
+          {withdrawal.rejection_reason && (
+            <div>
+              <p className="text-[10px] md:text-xs text-red-400">Rejection Reason</p>
+              <p className="text-sm md:text-base text-red-300 break-words">{withdrawal.rejection_reason}</p>
+            </div>
+          )}
+        </div>
+      )}
 
-      <ConfirmDialog
-        isOpen={showCompleteDialog}
-        onClose={() => setShowCompleteDialog(false)}
-        onConfirm={() => handleStatusChange("completed")}
-        title="Mark as Completed"
-        message={`Are you sure you want to mark this withdrawal as completed? This will finalize the transaction.`}
-        confirmText="Complete"
-        cancelText="Cancel"
-        type="info"
-      />
+      {/* Timeline */}
+      <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4 md:p-6">
+        <h3 className="text-xs md:text-sm font-medium text-slate-400 mb-3 md:mb-4 flex items-center gap-2">
+          <Clock className="h-3 w-3 md:h-4 md:w-4" />
+          Timeline
+        </h3>
+        <div className="space-y-2 md:space-y-3">
+          <div className="flex flex-col xs:flex-row xs:items-center xs:justify-between py-2 border-b border-slate-800 gap-1 xs:gap-0">
+            <span className="text-xs md:text-sm text-slate-400">Requested</span>
+            <span className="text-xs md:text-sm text-white">
+              {format(new Date(withdrawal.requested_at), 'PPP pp')}
+            </span>
+          </div>
+          {withdrawal.processed_at && (
+            <div className="flex flex-col xs:flex-row xs:items-center xs:justify-between py-2 border-b border-slate-800 gap-1 xs:gap-0">
+              <span className="text-xs md:text-sm text-slate-400">Processed</span>
+              <span className="text-xs md:text-sm text-white">
+                {format(new Date(withdrawal.processed_at), 'PPP pp')}
+              </span>
+            </div>
+          )}
+          {withdrawal.completed_at && (
+            <div className="flex flex-col xs:flex-row xs:items-center xs:justify-between py-2 gap-1 xs:gap-0">
+              <span className="text-xs md:text-sm text-slate-400">Completed</span>
+              <span className="text-xs md:text-sm text-white">
+                {format(new Date(withdrawal.completed_at), 'PPP pp')}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
 
-      <ConfirmDialog
-        isOpen={showRejectDialog}
-        onClose={() => setShowRejectDialog(false)}
-        onConfirm={() => handleStatusChange("rejected")}
-        title="Reject Withdrawal"
-        message={`Are you sure you want to reject this withdrawal of ₦${withdrawal.amount.toLocaleString()}?`}
-        confirmText="Reject"
-        cancelText="Cancel"
-        type="danger"
-      />
+      {/* Actions - Stack on mobile */}
+      {withdrawal.status === 'pending' && (
+        <div className="flex flex-col sm:flex-row flex-wrap gap-2 md:gap-3 pt-4 border-t border-slate-800">
+          <Button
+            onClick={() => handleAction('approve')}
+            disabled={processing}
+            className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white text-sm md:text-base"
+          >
+            {processing ? (
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            ) : (
+              <CheckCircle className="h-4 w-4 mr-2" />
+            )}
+            Approve Withdrawal
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => handleAction('reject')}
+            disabled={processing}
+            className="w-full sm:w-auto border-red-500 text-red-500 hover:bg-red-500/10 text-sm md:text-base"
+          >
+            {processing ? (
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            ) : (
+              <XCircle className="h-4 w-4 mr-2" />
+            )}
+            Reject Withdrawal
+          </Button>
+        </div>
+      )}
+
+      {withdrawal.status === 'approved' && (
+        <div className="flex flex-col sm:flex-row flex-wrap gap-2 md:gap-3 pt-4 border-t border-slate-800">
+          <Button
+            onClick={() => handleAction('complete')}
+            disabled={processing}
+            className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white text-sm md:text-base"
+          >
+            {processing ? (
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            ) : (
+              <CheckCircle className="h-4 w-4 mr-2" />
+            )}
+            Mark as Completed
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

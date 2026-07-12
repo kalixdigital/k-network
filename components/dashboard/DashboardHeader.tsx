@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { showToast } from "@/components/ui/toast";
+import { getLevel } from "@/lib/constants/levels";
 import { 
   Bell, 
   LogOut, 
@@ -12,13 +13,14 @@ import {
   Settings, 
   LayoutDashboard,
   Users,
-  ShoppingBag,
   HelpCircle,
   ChevronDown,
-  Award,
   Gift,
-  CircleUser
+  GitBranch,
+  CircleUser,
+  TrendingUp // Add this import for the Points Engine icon
 } from "lucide-react";
+import NotificationsPanel from "./NotificationsPanel";
 
 export default function DashboardHeader() {
   const router = useRouter();
@@ -90,15 +92,6 @@ export default function DashboardHeader() {
     router.push(path);
   };
 
-  const getInitials = (name: string) => {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
-  };
-
   // Check if a path is active
   const isActive = (path: string) => {
     if (path === "/dashboard") {
@@ -107,11 +100,22 @@ export default function DashboardHeader() {
     return pathname?.startsWith(path);
   };
 
+  const levelId = profile?.membership_level || 1;
+  const levelData = getLevel(levelId);
+  const levelColor = levelData.textColor;
+  const levelBg = levelData.bgColor;
+
   const menuItems = [
     {
       label: "Dashboard",
       icon: LayoutDashboard,
       href: "/dashboard",
+      show: true,
+    },
+    {
+      label: "Points Engine", // New menu item
+      icon: TrendingUp,
+      href: "/dashboard/points-engine",
       show: true,
     },
     {
@@ -127,9 +131,9 @@ export default function DashboardHeader() {
       show: true,
     },
     {
-      label: "My Orders",
-      icon: ShoppingBag,
-      href: "/orders",
+      label: "Genealogy",
+      icon: GitBranch,
+      href: "/dashboard/genealogy",
       show: true,
     },
     {
@@ -145,22 +149,16 @@ export default function DashboardHeader() {
       show: true,
     },
     {
-      label: "Admin Panel",
-      icon: Award,
-      href: "/admin",
-      show: profile?.role === "admin",
-    },
-    {
       label: "Help & Support",
       icon: HelpCircle,
-      href: "/support",
+      href: "/dashboard/support",  
       show: true,
     },
   ];
 
   const visibleMenuItems = menuItems.filter(item => item.show);
 
-  // Get user avatar or initials
+  // Get user avatar - always show user icon
   const renderAvatar = () => {
     if (loading) {
       return (
@@ -170,21 +168,9 @@ export default function DashboardHeader() {
       );
     }
 
-    if (profile?.avatar_url) {
-      // If user has an avatar image (future feature)
-      return (
-        <img
-          src={profile.avatar_url}
-          alt={profile.full_name}
-          className="h-9 w-9 rounded-full object-cover border-2 border-emerald-500/50"
-        />
-      );
-    }
-
-    // Fallback to initials
     return (
-      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-500 font-bold text-white">
-        {profile ? getInitials(profile.full_name) : "U"}
+      <div className={`flex h-9 w-9 items-center justify-center rounded-full ${levelBg} text-white`}>
+        <CircleUser className="h-6 w-6" />
       </div>
     );
   };
@@ -194,7 +180,7 @@ export default function DashboardHeader() {
       <div className="mx-auto flex max-w-7xl items-center justify-between">
         {/* Logo */}
         <Link href="/dashboard" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500 font-bold text-white md:h-9 md:w-9">
+          <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${levelBg} font-bold text-white md:h-9 md:w-9`}>
             K
           </div>
           <div className="hidden sm:block">
@@ -205,14 +191,8 @@ export default function DashboardHeader() {
 
         {/* Right Side */}
         <div className="flex items-center gap-2 md:gap-3">
-          {/* Notifications */}
-          <button
-            className="relative rounded-full border border-slate-700 p-2 transition hover:bg-slate-800"
-            onClick={() => showToast.info("Notifications coming soon!")}
-          >
-            <Bell className="h-4 w-4 text-slate-400" />
-            <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500" />
-          </button>
+          {/* Notifications Panel */}
+          <NotificationsPanel />
 
           {/* User Menu */}
           <div className="relative" ref={menuRef}>
@@ -235,21 +215,13 @@ export default function DashboardHeader() {
                 {!loading && profile && (
                   <div className="border-b border-slate-800 px-4 py-3">
                     <div className="flex items-center gap-3">
-                      {profile?.avatar_url ? (
-                        <img
-                          src={profile.avatar_url}
-                          alt={profile.full_name}
-                          className="h-10 w-10 rounded-full object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500 font-bold text-white">
-                          {getInitials(profile.full_name)}
-                        </div>
-                      )}
+                      <div className={`flex h-10 w-10 items-center justify-center rounded-full ${levelBg} text-white`}>
+                        <CircleUser className="h-6 w-6" />
+                      </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-semibold text-white">{profile.full_name}</p>
-                        <p className="text-sm text-slate-400">
-                          Level {profile.membership_level}
+                        <p className={`text-sm ${levelColor}`}>
+                          {levelData.name}
                         </p>
                       </div>
                     </div>
@@ -270,17 +242,12 @@ export default function DashboardHeader() {
                         onClick={() => navigateTo(item.href)}
                         className={`flex w-full items-center gap-3 px-4 py-2.5 text-sm transition ${
                           active
-                            ? "bg-emerald-500/10 text-emerald-400"
+                            ? `${levelColor} font-semibold`
                             : "text-slate-300 hover:bg-slate-800 hover:text-white"
                         }`}
                       >
-                        <Icon className={`h-4 w-4 ${active ? "text-emerald-400" : ""}`} />
-                        <span className={active ? "font-semibold" : ""}>
-                          {item.label}
-                        </span>
-                        {active && (
-                          <span className="ml-auto h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                        )}
+                        <Icon className={`h-4 w-4 ${active ? levelColor : ""}`} />
+                        <span>{item.label}</span>
                       </button>
                     );
                   })}

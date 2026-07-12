@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 
 export default function CartPage() {
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen pb-24 lg:pb-0">
       <div className="space-y-6">
         {/* Page Header */}
         <div>
@@ -24,16 +24,28 @@ export default function CartPage() {
 
         {/* Cart Content */}
         <div className="grid gap-8 lg:grid-cols-3">
+          {/* Cart Items - Left Column */}
           <div className="lg:col-span-2">
             <CartList />
-
           </div>
+
+          {/* Cart Summary - Right Column */}
           <div>
+            {/* Summary Card */}
             <CartSummary />
-                        {/* Optional: Add checkout button below cart on mobile */}
-            <div className="mt-6 lg:hidden">
+
+            {/* Checkout Button - Desktop */}
+            <div className="hidden lg:block mt-6">
               <CheckoutButton />
             </div>
+          </div>
+        </div>
+
+        {/* Checkout Button - Mobile Only (sticky bottom) */}
+        <div className="lg:hidden">
+        {/* Checkout Button - Mobile Only (sticky bottom) */}
+        <div className="lg:hidden sticky bottom-0 z-40 bg-slate-900/95 backdrop-blur-xl border-t border-slate-800 px-4 py-3 mt-6">
+            <CheckoutButton />
           </div>
         </div>
       </div>

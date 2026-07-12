@@ -15,8 +15,7 @@ export default function CompleteProfilePage() {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   
-  // Profile fields - Everything except email, password, referral
-  const [phone, setPhone] = useState("");
+  // Profile fields - Only fields that weren't in registration
   const [country, setCountry] = useState("Nigeria");
   const [state, setState] = useState("");
   const [address, setAddress] = useState("");
@@ -58,7 +57,6 @@ export default function CompleteProfilePage() {
 
     // Pre-fill if data exists
     if (profile) {
-      setPhone(profile.phone || "");
       setCountry(profile.country || "Nigeria");
       setState(profile.state || "");
       setAddress(profile.address || "");
@@ -78,15 +76,39 @@ export default function CompleteProfilePage() {
     setLoading(true);
 
     try {
-      // Update profile with all fields
+      // Build profile data for the RPC function
+      const profileData = {
+        profile_picture: "",
+        address: address,
+        gender: gender,
+        date_of_birth: dateOfBirth,
+        bank_name: bankName,
+        bank_account_number: bankAccountNumber,
+        bank_account_name: bankAccountName,
+        next_of_kin_name: nextOfKinName,
+        next_of_kin_phone: nextOfKinPhone,
+        next_of_kin_relationship: nextOfKinRelationship,
+      };
+
+      // Call the complete_profile RPC function
+      const { data: result, error: rpcError } = await supabase.rpc(
+        "complete_profile",
+        {
+          p_user_id: user.id,
+          p_profile_data: profileData,
+        }
+      );
+
+      if (rpcError) throw rpcError;
+
+      // Also update the profile directly (backup)
       const { error } = await supabase
         .from("profiles")
         .update({
-          phone,
-          country,
-          state,
-          address,
-          gender,
+          country: country,
+          state: state,
+          address: address,
+          gender: gender,
           date_of_birth: dateOfBirth,
           bank_name: bankName,
           bank_account_number: bankAccountNumber,
@@ -95,7 +117,6 @@ export default function CompleteProfilePage() {
           next_of_kin_phone: nextOfKinPhone,
           next_of_kin_relationship: nextOfKinRelationship,
           registration_completed: true,
-          updated_at: new Date().toISOString(),
         })
         .eq("id", user.id);
 
@@ -105,6 +126,7 @@ export default function CompleteProfilePage() {
       router.push('/products');
       
     } catch (error: any) {
+      console.error("Profile completion error:", error);
       showToast.error(error.message || "Failed to complete profile");
     } finally {
       setLoading(false);
@@ -131,16 +153,7 @@ export default function CompleteProfilePage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Phone - Moved from Step 1 */}
-          <FormInput
-            label="Phone Number"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            placeholder="Enter your phone number"
-            required
-          />
-
-          {/* Country - Moved from Step 1 */}
+          {/* Country - Already had during registration but allowing update */}
           <FormSelect
             label="Country"
             placeholder="Select Country"
@@ -149,7 +162,7 @@ export default function CompleteProfilePage() {
             options={["Nigeria"]}
           />
 
-          {/* State - Moved from Step 1 */}
+          {/* State - Already had during registration but allowing update */}
           <FormSelect
             label="State"
             placeholder="Select State"

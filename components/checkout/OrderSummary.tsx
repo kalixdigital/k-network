@@ -2,173 +2,196 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
-import { showToast } from "@/components/ui/toast";
-import { Award, Copy, Check } from "lucide-react";
-import { OrderSummaryItem, getFirstProduct } from "@/types/database";
+import { ShoppingBag } from "lucide-react";
+import Link from "next/link";
+
+type Product = {
+  name: string;
+  price: number;
+  points: number;
+  image_url?: string;
+};
+
+type CartItem = {
+  id: string;
+  product_id: string;
+  quantity: number;
+  products: Product[];
+};
 
 export default function OrderSummary() {
-  const [items, setItems] = useState<OrderSummaryItem[]>([]);
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
   const [totalPoints, setTotalPoints] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    const loadCart = async () => {
-      try {
-        const {
-          data: { user },
-          error: userError,
-        } = await supabase.auth.getUser();
-
-        if (userError) throw userError;
-
-        if (!user) {
-          showToast.error("Please login to view your cart");
-          setLoading(false);
-          return;
-        }
-
-        const { data, error } = await supabase
-          .from("cart_items")
-          .select(`
-            quantity,
-            products (
-              id,
-              name,
-              price,
-              points,
-              image_url,
-              stock
-            )
-          `)
-          .eq("user_id", user.id);
-
-        if (error) throw error;
-
-        if (!data || data.length === 0) {
-          setItems([]);
-          setTotal(0);
-          setTotalPoints(0);
-          setLoading(false);
-          return;
-        }
-
-        // ✅ Cast safely using 'as unknown as'
-        const cartItems = (data ?? []) as unknown as OrderSummaryItem[];
-        setItems(cartItems);
-
-        let sum = 0;
-        let points = 0;
-
-        cartItems.forEach((item) => {
-          const product = getFirstProduct(item);
-          if (product) {
-            sum += product.price * item.quantity;
-            points += product.points * item.quantity;
-          }
-        });
-
-        setTotal(sum);
-        setTotalPoints(points);
-      } catch (error) {
-        console.error("Error loading cart:", error);
-        showToast.error("Failed to load cart");
-      } finally {
-        setLoading(false);
-      }
-    };
-
     loadCart();
   }, []);
 
-  const copyAmount = async () => {
+  const loadCart = async () => {
+    setLoading(true);
     try {
-      await navigator.clipboard.writeText(`₦${total.toLocaleString()}`);
-      setCopied(true);
-      showToast.success("Amount copied!");
-      setTimeout(() => setCopied(false), 3000);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      // Get cart items with product data using nested select
+      const { data: cartData, error: cartError } = await supabase
+        .from("cart_items")
+        .select(`
+          id,
+          product_id,
+          quantity,
+          products (
+            name,
+            price,
+            points,
+            image_url
+          )
+        `)
+        .eq("user_id", user.id);
+
+      if (cartError) {
+        console.error("Cart fetch error:", cartError);
+        setLoading(false);
+        return;
+      }
+
+      if (!cartData || cartData.length === 0) {
+        setCartItems([]);
+        setTotal(0);
+        setTotalPoints(0);
+        setLoading(false);
+        return;
+      }
+
+      // Normalize data - ensure products is an array
+      const normalizedItems = cartData.map((item: any) => {
+        let products = [];
+        if (item.products && Array.isArray(item.products)) {
+          products = item.products;
+        } else if (item.products && typeof item.products === 'object') {
+          products = [item.products];
+        }
+        return {
+          ...item,
+          products: products,
+        };
+      });
+
+      // Filter out items without products
+      const validItems = normalizedItems.filter(
+        (item: CartItem) => item.products && item.products.length > 0
+      );
+
+      setCartItems(validItems);
+
+      // Calculate totals
+      let totalAmount = 0;
+      let totalPointsAmount = 0;
+      validItems.forEach((item: CartItem) => {
+        const product = item.products[0];
+        if (product) {
+          totalAmount += product.price * item.quantity;
+          totalPointsAmount += product.points * item.quantity;
+        }
+      });
+      setTotal(totalAmount);
+      setTotalPoints(totalPointsAmount);
     } catch (error) {
-      showToast.error("Failed to copy amount");
+      console.error("Error loading cart:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
   if (loading) {
     return (
-      <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
+      <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6 shadow-xl backdrop-blur">
         <div className="flex items-center justify-center py-8">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-400 border-t-transparent" />
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent" />
         </div>
       </div>
     );
   }
 
-  if (items.length === 0) {
+  if (cartItems.length === 0) {
     return (
-      <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6 text-center">
-        <p className="text-slate-400">Your cart is empty</p>
+      <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6 shadow-xl backdrop-blur">
+        <div className="flex flex-col items-center justify-center py-8 text-center">
+          <ShoppingBag className="h-12 w-12 text-slate-600" />
+          <p className="mt-4 text-slate-400">Your cart is empty</p>
+          <Link
+            href="/products"
+            className="mt-2 text-sm text-emerald-400 hover:text-emerald-300 transition"
+          >
+            Start Shopping
+          </Link>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6 backdrop-blur">
-      <h2 className="text-2xl font-bold text-white">Order Summary</h2>
+    <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6 shadow-xl backdrop-blur">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <ShoppingBag className="h-5 w-5 text-emerald-400" />
+          <h2 className="text-lg font-semibold text-white">Order Summary</h2>
+        </div>
+        <span className="text-sm text-slate-400">{cartItems.length} items</span>
+      </div>
 
-      <div className="mt-6 space-y-4">
-        {items.map((item, index) => {
-          const product = getFirstProduct(item);
+      <div className="space-y-3 max-h-60 overflow-y-auto pr-2">
+        {cartItems.map((item) => {
+          const product = item.products?.[0];
           if (!product) return null;
-          
           return (
-            <div key={index} className="flex justify-between border-b border-slate-800 pb-4">
-              <div>
-                <p className="font-medium text-white">{product.name}</p>
-                <p className="text-sm text-slate-400">Qty: {item.quantity}</p>
-                <p className="text-xs text-yellow-400">
-                  +{product.points * item.quantity} pts
+            <div
+              key={item.id}
+              className="flex items-center gap-3 rounded-lg bg-slate-800/30 p-3"
+            >
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-white truncate">
+                  {product.name}
+                </p>
+                <div className="flex items-center gap-2 text-xs text-slate-400">
+                  <span>₦{product.price.toLocaleString()}</span>
+                  <span>•</span>
+                  <span>Qty: {item.quantity}</span>
+                  <span>•</span>
+                  <span className="text-yellow-400">+{product.points * item.quantity} pts</span>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-sm font-semibold text-white">
+                  ₦{(product.price * item.quantity).toLocaleString()}
                 </p>
               </div>
-              <p className="font-bold text-emerald-400">
-                ₦{(product.price * item.quantity).toLocaleString()}
-              </p>
             </div>
           );
         })}
       </div>
 
-      <div className="mt-6 space-y-3 border-t border-slate-700 pt-6">
-        <div className="flex justify-between">
+      <div className="mt-4 border-t border-slate-800 pt-4 space-y-2">
+        <div className="flex items-center justify-between text-sm">
           <span className="text-slate-400">Subtotal</span>
           <span className="text-white">₦{total.toLocaleString()}</span>
         </div>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between text-sm">
           <span className="text-slate-400">Points Earned</span>
-          <span className="flex items-center gap-1 text-yellow-400">
-            <Award className="h-4 w-4" />
-            +{totalPoints}
-          </span>
+          <span className="text-yellow-400">+{totalPoints.toLocaleString()} pts</span>
         </div>
-      </div>
-
-      {/* ⭐ Exact Amount to Transfer - Prominent Display */}
-      <div className="mt-4 rounded-xl border-2 border-emerald-500/30 bg-emerald-500/10 p-4">
-        <p className="text-sm text-slate-400 text-center">Amount to Transfer</p>
-        <div className="flex items-center justify-center gap-3 mt-1">
-          <p className="text-3xl font-bold text-emerald-400">
-            ₦{total.toLocaleString()}
-          </p>
-          <button
-            onClick={copyAmount}
-            className="rounded-lg p-2 text-emerald-400 transition hover:bg-emerald-500/10"
-            title="Copy amount"
-          >
-            {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-          </button>
+        <div className="flex items-center justify-between text-lg font-bold border-t border-slate-800 pt-2">
+          <span className="text-white">Total</span>
+          <span className="text-emerald-400">₦{total.toLocaleString()}</span>
         </div>
-        <p className="text-center text-xs text-slate-400 mt-1">
-          Transfer this exact amount to the account below
-        </p>
       </div>
     </div>
   );

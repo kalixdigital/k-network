@@ -29,7 +29,6 @@ export default function SettingCard({
       showToast.success(`${title} saved successfully`);
     } catch (error: any) {
       console.error(`Error saving ${title}:`, error);
-      // ✅ Show a more specific error message
       const errorMessage = error?.message || error?.details || `Failed to save ${title}`;
       showToast.error(errorMessage);
     } finally {

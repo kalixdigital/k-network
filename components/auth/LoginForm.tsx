@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
 import { supabase } from "@/lib/supabase/client";
@@ -15,6 +15,9 @@ import SubmitButton from "@/components/form/SubmitButton";
 
 export default function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  
+  const redirectTo = searchParams.get('redirect') || '/dashboard';
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -60,10 +63,8 @@ export default function LoginForm() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Clear previous errors
     setError(null);
 
-    // Validate inputs
     if (!email.trim()) {
       showToast.error("Please enter your email address.");
       return;
@@ -79,8 +80,8 @@ export default function LoginForm() {
     try {
       console.log("🔄 Attempting login...");
       console.log("📧 Email:", email);
+      console.log("🔀 Redirect to:", redirectTo);
 
-      // Sign in user
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -94,7 +95,6 @@ export default function LoginForm() {
           name: error.name,
         });
         
-        // Show more specific error messages with toast
         if (error.message === "Invalid login credentials") {
           showToast.error("Invalid email or password. Please check your credentials and try again.");
         } else if (error.message.toLowerCase().includes("email not confirmed")) {
@@ -115,7 +115,6 @@ export default function LoginForm() {
 
       console.log("✅ User logged in:", data.user.id);
 
-      // Fetch user profile with retry logic
       const profile = await fetchProfileWithRetry(data.user.id);
 
       if (!profile) {
@@ -128,7 +127,6 @@ export default function LoginForm() {
       console.log("🔐 Is admin?", profile?.role === "admin");
       console.log("✅ Is verified:", profile?.is_verified);
 
-      // Check if account is verified
       if (profile?.is_verified === false) {
         setLoading(false);
         showToast.error("Your account is pending verification. Please contact support.");
@@ -138,23 +136,24 @@ export default function LoginForm() {
       setLoading(false);
       setError(null);
 
-      // Show success message
       showToast.success(`Welcome back, ${profile?.full_name || 'User'}! 🎉`);
 
-      // Redirect based on role
-      if (profile?.role === "admin") {
-        console.log("🚀 Redirecting to /admin");
-        setTimeout(() => {
-          router.push("/admin");
-          router.refresh();
-        }, 500);
-      } else {
-        console.log("🚀 Redirecting to /dashboard");
-        setTimeout(() => {
-          router.push("/dashboard");
-          router.refresh();
-        }, 500);
+      let finalRedirect = redirectTo;
+      
+      if (profile?.role === "admin" && redirectTo === "/checkout") {
+        finalRedirect = "/admin";
+      } else if (profile?.role === "admin") {
+        finalRedirect = "/admin";
+      } else if (profile?.role !== "admin" && redirectTo === "/checkout") {
+        finalRedirect = "/checkout";
       }
+
+      console.log("🚀 Redirecting to:", finalRedirect);
+      
+      setTimeout(() => {
+        router.push(finalRedirect);
+        router.refresh();
+      }, 500);
 
     } catch (err) {
       console.error("💥 Unexpected error:", err);
@@ -164,14 +163,13 @@ export default function LoginForm() {
   };
 
   return (
-    <div className="w-full max-w-xl rounded-3xl border border-slate-800 bg-slate-900/80 backdrop-blur-xl p-8 shadow-2xl">
+    <div className="w-full max-w-xl rounded-3xl border border-slate-800 bg-slate-900/80 backdrop-blur-xl p-5 sm:p-8 shadow-2xl">
       <AuthHeader
         title="Welcome Back"
         description="Sign in to your K-NETWORK account."
       />
 
-      <form onSubmit={onSubmit} className="mt-8 space-y-6">
-        {/* Error Message - Keep this for inline errors, but now toasts will also show */}
+      <form onSubmit={onSubmit} className="mt-6 sm:mt-8 space-y-5 sm:space-y-6">
         {error && (
           <div className="p-3 bg-red-900/50 border border-red-700 rounded-lg">
             <p className="text-red-200 text-sm">{error}</p>
@@ -200,7 +198,7 @@ export default function LoginForm() {
           placeholder="Enter your password"
         />
 
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-2 xs:gap-0">
           <FormCheckbox
             checked={remember}
             onCheckedChange={(checked) => setRemember(checked)}
@@ -209,7 +207,7 @@ export default function LoginForm() {
 
           <Link
             href="/forgot-password"
-            className="text-sm text-emerald-400 hover:text-emerald-300 transition-colors"
+            className="text-sm text-emerald-400 hover:text-emerald-300 transition-colors text-left xs:text-right"
           >
             Forgot Password?
           </Link>

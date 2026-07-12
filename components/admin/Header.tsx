@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { showToast } from "@/components/ui/toast";
 import { Bell, LogOut, Menu, X } from "lucide-react";
+import AdminNotificationsButton from "@/components/admin/AdminNotificationsButton";
+import { getLevel } from "@/lib/constants/levels";
 
 type HeaderProps = {
   profile: any;
@@ -30,6 +32,11 @@ export default function Header({ profile, onMenuToggle, isMobileMenuOpen }: Head
     }
   };
 
+  const levelId = profile?.membership_level || 1;
+  const levelData = getLevel(levelId);
+  const levelColor = levelData.textColor;
+  const levelBg = levelData.bgColor;
+
   return (
     <header className="sticky top-0 z-50 border-b border-slate-800 bg-slate-900/95 px-4 py-3 backdrop-blur-xl md:px-6 md:py-4">
       <div className="mx-auto flex max-w-7xl items-center justify-between">
@@ -42,28 +49,23 @@ export default function Header({ profile, onMenuToggle, isMobileMenuOpen }: Head
           </button>
 
           <Link href="/admin/dashboard" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500 font-bold text-white">
+            <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${levelBg} font-bold text-white`}>
               K
             </div>
             <div>
               <h1 className="text-lg font-bold text-white">K-NETWORK</h1>
-              <p className="text-xs text-emerald-400">Admin Panel</p>
+              <p className={`text-xs ${levelColor}`}>Admin Panel</p>
             </div>
           </Link>
         </div>
 
         <div className="flex items-center gap-3">
-          <button
-            className="relative rounded-full border border-slate-700 p-2 transition hover:bg-slate-800"
-            onClick={() => showToast.info("Notifications coming soon!")}
-          >
-            <Bell className="h-4 w-4 text-slate-400" />
-            <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500" />
-          </button>
+          {/* Admin Notifications Button - Using the new component */}
+          <AdminNotificationsButton />
 
           <div className="hidden md:block">
             <p className="text-sm font-medium text-white">{profile?.full_name}</p>
-            <p className="text-xs text-emerald-400">Administrator</p>
+            <p className={`text-xs ${levelColor}`}>Administrator</p>
           </div>
 
           <button

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import BankDetails from "@/components/checkout/BankDetails";
 import OrderSummary from "@/components/checkout/OrderSummary";
 import PaymentInstructions from "@/components/checkout/PaymentInstructions";
@@ -8,58 +9,139 @@ import UploadReceipt from "@/components/checkout/UploadReceipt";
 import SubmitOrderButton from "@/components/checkout/SubmitOrderButton";
 import { supabase } from "@/lib/supabase/client";
 
+type Product = {
+  id: string;
+  name: string;
+  price: number;
+  points: number;
+  image_url: string | null;
+  stock: number;
+};
+
+type CartItem = {
+  id: string;
+  product_id: string;
+  quantity: number;
+  products: Product[];
+};
+
 export default function CheckoutPage() {
+  const router = useRouter();
   const [receiptPath, setReceiptPath] = useState("");
   const [totalAmount, setTotalAmount] = useState(0);
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    const loadTotal = async () => {
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
-        if (!user) return;
-
-        const { data, error } = await supabase
-          .from("cart_items")
-          .select(`
-            quantity,
-            products!inner (
-              price
-            )
-          `)
-          .eq("user_id", user.id);
-
-        if (error) {
-          console.error("Error loading cart:", error);
-          return;
-        }
-
-        if (data && data.length > 0) {
-          const total = data.reduce((sum: number, item: any) => {
-            // Use optional chaining with array access
-            const product = item.products?.[0];
-            const price = product?.price || 0;
-            return sum + price * item.quantity;
-          }, 0);
-          setTotalAmount(total);
-        }
-      } catch (error) {
-        console.error("Error loading total:", error);
-      }
-    };
-
-    loadTotal();
+    checkAuthAndLoadCart();
   }, []);
+
+  const checkAuthAndLoadCart = async () => {
+    setLoading(true);
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError || !user) {
+        // Redirect to login but don't lose the checkout page
+        router.push("/login?redirect=/checkout");
+        return;
+      }
+
+      setIsAuthenticated(true);
+      await loadCartData(user.id);
+    } catch (error) {
+      console.error("Error checking auth:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadCartData = async (userId: string) => {
+    try {
+      const { data: cartData, error } = await supabase
+        .from("cart_items")
+        .select(`
+          id,
+          product_id,
+          quantity,
+          products (
+            id,
+            name,
+            price,
+            points,
+            image_url,
+            stock
+          )
+        `)
+        .eq("user_id", userId);
+
+      if (error) {
+        console.error("Error loading cart:", error);
+        return;
+      }
+
+      if (!cartData || cartData.length === 0) {
+        setCartItems([]);
+        setTotalAmount(0);
+        return;
+      }
+
+      // Normalize data - ensure products is an array
+      const normalizedItems = cartData.map((item: any) => {
+        let products = [];
+        if (item.products && Array.isArray(item.products)) {
+          products = item.products;
+        } else if (item.products && typeof item.products === 'object') {
+          products = [item.products];
+        }
+        return {
+          ...item,
+          products: products,
+        };
+      });
+
+      setCartItems(normalizedItems);
+
+      // Calculate total
+      let total = 0;
+      normalizedItems.forEach((item: CartItem) => {
+        if (item.products && item.products.length > 0) {
+          const product = item.products[0];
+          total += product.price * item.quantity;
+        }
+      });
+      setTotalAmount(total);
+    } catch (error) {
+      console.error("Error loading cart:", error);
+    }
+  };
 
   const handleReceiptUpload = (path: string) => {
     console.log("📤 Receipt uploaded, path:", path);
     setReceiptPath(path);
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-emerald-400 border-t-transparent" />
+          <p className="mt-4 text-slate-400">Loading checkout...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return null; // Will redirect to login
+  }
+
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen pb-24 lg:pb-0">
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold text-white md:text-4xl">

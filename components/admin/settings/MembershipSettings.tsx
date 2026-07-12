@@ -34,23 +34,41 @@ export default function MembershipSettings() {
         .eq("id", 1)
         .single();
 
-      if (error) throw error;
-      if (data) setSettings(data);
-    } catch (error) {
+      if (error) {
+        console.error("Error loading membership settings:", error);
+        showToast.error("Failed to load membership settings");
+        return;
+      }
+
+      if (data) {
+        setSettings({
+          enable_membership: data.enable_membership ?? true,
+          membership_upgrade_auto: data.membership_upgrade_auto ?? true,
+          membership_grace_period: data.membership_grace_period ?? 30,
+        });
+      }
+    } catch (error: any) {
       console.error("Error loading settings:", error);
-      showToast.error("Failed to load settings");
+      showToast.error(error?.message || "Failed to load settings");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value, type } = e.target;
-    const checked = (e.target as HTMLInputElement).checked;
-
+  const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, checked } = e.target;
     setSettings((prev) => ({
       ...prev,
-      [name]: type === "checkbox" ? checked : parseFloat(value) || 0,
+      [name]: checked,
+    }));
+  };
+
+  const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    const numValue = value === '' ? 0 : parseInt(value) || 0;
+    setSettings((prev) => ({
+      ...prev,
+      [name]: numValue,
     }));
   };
 
@@ -98,14 +116,14 @@ export default function MembershipSettings() {
             </p>
           </div>
 
-          <div className="space-y-3">
-            <label className="flex cursor-pointer items-center gap-3">
+          <div className="space-y-4">
+            <label className="flex cursor-pointer items-start gap-3">
               <input
                 type="checkbox"
                 name="enable_membership"
-                checked={settings.enable_membership || false}
-                onChange={handleChange}
-                className="h-4 w-4 rounded border-slate-700 bg-slate-800 text-emerald-500 focus:ring-emerald-500"
+                checked={settings.enable_membership ?? true}
+                onChange={handleCheckboxChange}
+                className="mt-0.5 h-4 w-4 rounded border-slate-700 bg-slate-800 text-emerald-500 focus:ring-emerald-500"
               />
               <div>
                 <span className="text-sm text-white">Enable Membership System</span>
@@ -113,13 +131,13 @@ export default function MembershipSettings() {
               </div>
             </label>
 
-            <label className="flex cursor-pointer items-center gap-3">
+            <label className="flex cursor-pointer items-start gap-3">
               <input
                 type="checkbox"
                 name="membership_upgrade_auto"
-                checked={settings.membership_upgrade_auto || false}
-                onChange={handleChange}
-                className="h-4 w-4 rounded border-slate-700 bg-slate-800 text-emerald-500 focus:ring-emerald-500"
+                checked={settings.membership_upgrade_auto ?? true}
+                onChange={handleCheckboxChange}
+                className="mt-0.5 h-4 w-4 rounded border-slate-700 bg-slate-800 text-emerald-500 focus:ring-emerald-500"
               />
               <div>
                 <span className="text-sm text-white">Automatic Upgrades</span>
@@ -134,8 +152,8 @@ export default function MembershipSettings() {
               <input
                 type="number"
                 name="membership_grace_period"
-                value={settings.membership_grace_period || 30}
-                onChange={handleChange}
+                value={settings.membership_grace_period ?? 30}
+                onChange={handleNumberChange}
                 min="0"
                 max="365"
                 className="mt-1 w-full max-w-[200px] rounded-lg border border-slate-800 bg-slate-900/50 px-4 py-2.5 text-white focus:border-emerald-500 focus:outline-none"

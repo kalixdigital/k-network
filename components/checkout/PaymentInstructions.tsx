@@ -2,143 +2,149 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
+import { Info, AlertCircle, Clock, CheckCircle, Copy, Check } from "lucide-react";
 import { showToast } from "@/components/ui/toast";
-import { Copy, Check, AlertCircle } from "lucide-react";
 
-type Props = {
-  totalAmount?: number;
+type PaymentInstructionsProps = {
+  totalAmount: number;
 };
 
-export default function PaymentInstructions({ totalAmount = 0 }: Props) {
+export default function PaymentInstructions({ totalAmount }: PaymentInstructionsProps) {
   const [memberId, setMemberId] = useState("");
-  const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    const loadProfile = async () => {
-      try {
-        const {
-          data: { user },
-          error: userError,
-        } = await supabase.auth.getUser();
-
-        if (userError) throw userError;
-
-        if (!user) {
-          showToast.error("Please login");
-          setLoading(false);
-          return;
-        }
-
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("id_number")
-          .eq("id", user.id)
-          .single();
-
-        if (error) throw error;
-
-        if (data) {
-          setMemberId(data.id_number);
-        }
-      } catch (error) {
-        console.error("Error loading profile:", error);
-        showToast.error("Failed to load profile");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadProfile();
+    loadMemberId();
   }, []);
 
-  const copyMemberId = async () => {
+  const loadMemberId = async () => {
     try {
-      await navigator.clipboard.writeText(memberId);
-      setCopied(true);
-      showToast.success("Member ID copied!");
-      setTimeout(() => setCopied(false), 3000);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) return;
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id_number")
+        .eq("id", user.id)
+        .single();
+
+      if (profile) {
+        setMemberId(profile.id_number || "");
+      }
     } catch (error) {
-      showToast.error("Failed to copy Member ID");
+      console.error("Error loading member ID:", error);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
-        <div className="flex items-center justify-center py-8">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-400 border-t-transparent" />
-        </div>
-      </div>
-    );
-  }
+  const copyMemberId = async () => {
+    if (!memberId) {
+      showToast.error("No member ID available");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(memberId);
+      setCopied(true);
+      showToast.success("Member ID copied! Use this as your transaction narration.");
+      setTimeout(() => setCopied(false), 3000);
+    } catch (err) {
+      showToast.error("Failed to copy member ID");
+    }
+  };
 
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6 backdrop-blur">
-      <h2 className="text-xl font-bold text-white">Payment Instructions</h2>
+    <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6 shadow-xl backdrop-blur">
+      <div className="flex items-center gap-2 mb-4">
+        <Info className="h-5 w-5 text-emerald-400" />
+        <h2 className="text-lg font-semibold text-white">Payment Instructions</h2>
+      </div>
 
-      {/* ⭐ Amount Alert */}
-      {totalAmount > 0 && (
-        <div className="mt-3 rounded-xl bg-yellow-500/10 border border-yellow-500/30 p-3">
-          <div className="flex items-start gap-2">
-            <AlertCircle className="h-5 w-5 text-yellow-400 flex-shrink-0 mt-0.5" />
+      <div className="space-y-4">
+        <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-4">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-emerald-400 mt-0.5" />
             <div>
-              <p className="text-sm font-medium text-yellow-400">
-                Transfer <span className="font-bold">₦{totalAmount.toLocaleString()}</span> exactly
-              </p>
-              <p className="text-xs text-yellow-400/70">
-                Do not send more or less than this amount
+              <p className="font-medium text-white">Amount to Pay</p>
+              <p className="text-2xl font-bold text-emerald-400">
+                ₦{totalAmount.toLocaleString()}
               </p>
             </div>
           </div>
         </div>
-      )}
 
-      <div className="mt-4 space-y-3 text-sm text-slate-300">
-        <div className="flex items-start gap-3">
-          <span className="text-emerald-400 font-bold">1.</span>
-          <p>Transfer the exact amount of <strong className="text-emerald-400">₦{totalAmount.toLocaleString()}</strong> to the bank details below.</p>
-        </div>
-
-        <div className="flex items-start gap-3">
-          <span className="text-emerald-400 font-bold">2.</span>
-          <p>Use your <strong className="text-white">Member ID</strong> as the transfer narration.</p>
-        </div>
-
-        <div className="flex items-start gap-3">
-          <span className="text-emerald-400 font-bold">3.</span>
-          <p>Upload a clear screenshot or PDF of your payment receipt.</p>
-        </div>
-
-        <div className="flex items-start gap-3">
-          <span className="text-emerald-400 font-bold">4.</span>
-          <p>Click <strong className="text-white">"Submit Order"</strong> to complete your order.</p>
-        </div>
-      </div>
-
-      <div className="mt-4 rounded-xl bg-slate-800 p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs uppercase text-slate-400">Transfer Narration</p>
-            <p className="mt-1 font-mono text-xl font-bold text-emerald-400">
-              {memberId || "N/A"}
-            </p>
+        {/* Member ID - Copy Section */}
+        {memberId && (
+          <div className="rounded-lg bg-yellow-500/5 border border-yellow-500/20 p-4">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-yellow-400/80 flex items-center gap-1"> Use this as your transaction narration
+                </p>
+                <p className="font-mono text-sm font-bold text-yellow-400 truncate mt-0.5">
+                  {memberId}
+                </p>
+              </div>
+              <button
+                onClick={copyMemberId}
+                className="flex-shrink-0 rounded-lg bg-yellow-500/20 px-3 py-2 text-xs font-medium text-yellow-400 transition hover:bg-yellow-500/30 active:scale-95"
+              >
+                {copied ? (
+                  <span className="flex items-center gap-1">
+                    <Check className="h-3.5 w-3.5" />
+                    Copied!
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1">
+                    <Copy className="h-3.5 w-3.5" />
+                    Copy
+                  </span>
+                )}
+              </button>
+            </div>
           </div>
-          {memberId && (
-            <button
-              onClick={copyMemberId}
-              className="rounded-lg p-2 text-emerald-400 transition hover:bg-emerald-500/10"
-            >
-              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-            </button>
-          )}
-        </div>
-      </div>
+        )}
 
-      <div className="mt-3 rounded-xl bg-red-500/10 border border-red-500/30 p-3">
-        <p className="text-xs text-red-400 text-center">
-          ⚠️ Orders without correct payment amount or narration will be rejected
-        </p>
+        <div className="space-y-3">
+          <div className="flex items-start gap-3">
+            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-800 text-xs font-bold text-white">
+              1
+            </div>
+            <div>
+              <p className="text-sm text-white">Transfer the exact amount to the bank account above</p>
+              <p className="text-xs text-slate-400">Ensure you transfer the exact amount for faster confirmation</p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3">
+            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-800 text-xs font-bold text-white">
+              2
+            </div>
+            <div>
+              <p className="text-sm text-white">Use your Member ID as transaction narration</p>
+              <p className="text-xs text-slate-400">This helps us identify your payment quickly</p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3">
+            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-800 text-xs font-bold text-white">
+              3
+            </div>
+            <div>
+              <p className="text-sm text-white">Upload your payment receipt</p>
+              <p className="text-xs text-slate-400">Take a screenshot or photo of your transaction</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Payment Reminder */}
+        <div className="rounded-lg bg-amber-500/5 border border-amber-500/20 p-3">
+          <p className="text-xs text-amber-400/80 flex items-center gap-2">
+            <Clock className="h-3.5 w-3.5" />
+            <span>Payment confirmation may take up to 24 hours. You'll receive a notification once confirmed.</span>
+          </p>
+        </div>
       </div>
     </div>
   );

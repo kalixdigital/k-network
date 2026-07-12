@@ -4,7 +4,22 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { showToast } from "@/components/ui/toast";
 import { Award, ShoppingBag } from "lucide-react";
-import { OrderSummaryItem, getFirstProduct } from "@/types/database";
+
+type Product = {
+  id: string;
+  name: string;
+  price: number;
+  points: number;
+  image_url: string | null;
+  stock: number;
+};
+
+type CartItem = {
+  id: string;
+  product_id: string;
+  quantity: number;
+  products: Product[];
+};
 
 type CartSummaryType = {
   subtotal: number;
@@ -13,7 +28,7 @@ type CartSummaryType = {
 };
 
 export default function CartSummary() {
-  const [items, setItems] = useState<OrderSummaryItem[]>([]);
+  const [items, setItems] = useState<CartItem[]>([]);
   const [summary, setSummary] = useState<CartSummaryType>({
     subtotal: 0,
     totalPoints: 0,
@@ -44,10 +59,12 @@ export default function CartSummary() {
         return;
       }
 
-      const { data, error } = await supabase
+      // Get cart items with product data using nested select
+      const { data: cartData, error: cartError } = await supabase
         .from("cart_items")
         .select(`
           id,
+          product_id,
           quantity,
           products (
             id,
@@ -60,27 +77,46 @@ export default function CartSummary() {
         `)
         .eq("user_id", user.id);
 
-      if (error) throw error;
-
-      if (!data || data.length === 0) {
+      if (cartError) {
+        console.error("Cart fetch error:", cartError);
         if (isMountedRef.current) {
-          setItems([]);
-          setSummary({ subtotal: 0, totalPoints: 0, itemCount: 0 });
+          setLoading(false);
+          setIsUpdating(false);
         }
-        setLoading(false);
-        setIsUpdating(false);
         return;
       }
 
-      const cartItems = (data ?? []) as OrderSummaryItem[];
-      
+      if (!cartData || cartData.length === 0) {
+        if (isMountedRef.current) {
+          setItems([]);
+          setSummary({ subtotal: 0, totalPoints: 0, itemCount: 0 });
+          setLoading(false);
+          setIsUpdating(false);
+        }
+        return;
+      }
+
+      // Normalize data - ensure products is always an array
+      const normalizedItems = cartData.map((item: any) => {
+        let products = [];
+        if (item.products && Array.isArray(item.products)) {
+          products = item.products;
+        } else if (item.products && typeof item.products === 'object') {
+          products = [item.products];
+        }
+        return {
+          ...item,
+          products: products,
+        };
+      });
+
       let subtotal = 0;
       let totalPoints = 0;
       let itemCount = 0;
 
-      cartItems.forEach((item) => {
-        const product = getFirstProduct(item);
-        if (product) {
+      normalizedItems.forEach((item: CartItem) => {
+        if (item.products && item.products.length > 0) {
+          const product = item.products[0];
           subtotal += product.price * item.quantity;
           totalPoints += product.points * item.quantity;
           itemCount += item.quantity;
@@ -88,7 +124,7 @@ export default function CartSummary() {
       });
 
       if (isMountedRef.current) {
-        setItems(cartItems);
+        setItems(normalizedItems);
         setSummary({ subtotal, totalPoints, itemCount });
       }
     } catch (error) {
@@ -169,8 +205,8 @@ export default function CartSummary() {
 
       <div className="mt-6 space-y-4">
         {items.map((item, index) => {
-          const product = getFirstProduct(item);
-          if (!product) return null;
+          if (!item.products || item.products.length === 0) return null;
+          const product = item.products[0];
           
           return (
             <div key={index} className="flex justify-between border-b border-slate-800 pb-4">

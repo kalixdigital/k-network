@@ -45,8 +45,8 @@ export async function processReturningUser(
       console.warn("Using default settings:", settingsError);
     }
 
-    const directPercentage = settings?.direct_referral_percentage || 10; // 10% of product points
-    const indirectPercentage = settings?.indirect_referral_percentage || 5; // 5% of product points
+    const directPercentage = settings?.direct_referral_percentage || 10;
+    const indirectPercentage = settings?.indirect_referral_percentage || 5;
     const pointsRate = settings?.points_rate || 10;
 
     // 3. Calculate product points from order
@@ -76,7 +76,6 @@ export async function processReturningUser(
     let directReferrerId: string | null = userProfile.referred_by || null;
     let indirectReferrerId: string | null = null;
 
-    // If there's a direct referrer, find their referrer (indirect)
     if (directReferrerId) {
       const { data: directReferrer } = await supabase
         .from("profiles")
@@ -106,6 +105,9 @@ export async function processReturningUser(
       })
       .eq("id", userId);
 
+    console.log("✅ User points updated");
+    console.log("✅ Membership promotion will be handled automatically by trigger");
+
     // 7. Record product points history
     if (productPoints > 0) {
       await supabase.from("points_history").insert({
@@ -128,7 +130,7 @@ export async function processReturningUser(
       });
     }
 
-    // 8. Award DIRECT referral points (based on product points)
+    // 8. Award DIRECT referral points (on every purchase)
     if (directReferrerId && directReferralPoints > 0) {
       const { data: referrerProfile } = await supabase
         .from("profiles")
@@ -137,7 +139,6 @@ export async function processReturningUser(
         .single();
 
       if (referrerProfile) {
-        // Update referrer stats
         await supabase
           .from("profiles")
           .update({
@@ -151,7 +152,6 @@ export async function processReturningUser(
           })
           .eq("id", directReferrerId);
 
-        // Direct referral points history
         await supabase.from("points_history").insert({
           user_id: directReferrerId,
           points: directReferralPoints,
@@ -171,7 +171,6 @@ export async function processReturningUser(
           created_at: new Date().toISOString(),
         });
 
-        // Activity log for direct referrer
         await supabase.from("activities").insert({
           user_id: directReferrerId,
           title: "Direct Referral Bonus",
@@ -184,7 +183,7 @@ export async function processReturningUser(
       }
     }
 
-    // 9. Award INDIRECT referral points (based on product points)
+    // 9. Award INDIRECT referral points (on every purchase)
     if (indirectReferrerId && indirectReferralPoints > 0) {
       const { data: indirectProfile } = await supabase
         .from("profiles")
@@ -193,7 +192,6 @@ export async function processReturningUser(
         .single();
 
       if (indirectProfile) {
-        // Update indirect referrer stats
         await supabase
           .from("profiles")
           .update({
@@ -207,7 +205,6 @@ export async function processReturningUser(
           })
           .eq("id", indirectReferrerId);
 
-        // Indirect referral points history
         await supabase.from("points_history").insert({
           user_id: indirectReferrerId,
           points: indirectReferralPoints,
@@ -227,7 +224,6 @@ export async function processReturningUser(
           created_at: new Date().toISOString(),
         });
 
-        // Activity log for indirect referrer
         await supabase.from("activities").insert({
           user_id: indirectReferrerId,
           title: "Indirect Referral Bonus",
@@ -245,7 +241,6 @@ export async function processReturningUser(
     const month = now.getMonth() + 1;
     const year = now.getFullYear();
 
-    // Update direct referrer's monthly stats
     if (directReferrerId && directReferralPoints > 0) {
       await supabase
         .from("monthly_statistics")
@@ -266,7 +261,6 @@ export async function processReturningUser(
         });
     }
 
-    // Update indirect referrer's monthly stats
     if (indirectReferrerId && indirectReferralPoints > 0) {
       await supabase
         .from("monthly_statistics")

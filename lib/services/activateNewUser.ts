@@ -54,8 +54,8 @@ export async function activateNewUser(
       console.warn("Using default settings:", settingsError);
     }
 
-    const directPercentage = settings?.direct_referral_percentage || 10; // 10% of product points
-    const indirectPercentage = settings?.indirect_referral_percentage || 5; // 5% of product points
+    const directPercentage = settings?.direct_referral_percentage || 10;
+    const indirectPercentage = settings?.indirect_referral_percentage || 5;
     const pointsRate = settings?.points_rate || 10;
 
     // 4. Calculate product points from order
@@ -77,7 +77,6 @@ export async function activateNewUser(
     let indirectReferrerId: string | null = null;
 
     if (userProfile?.pending_referral_code) {
-      // Find direct referrer (the person who referred this user)
       const { data: directReferrer } = await supabase
         .from("profiles")
         .select("id, referred_by")
@@ -86,8 +85,6 @@ export async function activateNewUser(
 
       if (directReferrer) {
         directReferrerId = directReferrer.id;
-
-        // Find indirect referrer (the person who referred the direct referrer)
         if (directReferrer.referred_by) {
           indirectReferrerId = directReferrer.referred_by;
         }
@@ -112,7 +109,6 @@ export async function activateNewUser(
       updated_at: new Date().toISOString(),
     };
 
-    // Set referred_by to the direct referrer if found
     if (directReferrerId) {
       updates.referred_by = directReferrerId;
       updates.pending_referral_code = null;
@@ -126,6 +122,7 @@ export async function activateNewUser(
     if (updateError) throw new Error(`Update error: ${updateError.message}`);
 
     console.log("✅ User activated successfully");
+    console.log("✅ Membership promotion will be handled automatically by trigger");
 
     // 7. Award product points history for the user
     if (productPoints > 0) {
@@ -149,7 +146,7 @@ export async function activateNewUser(
       });
     }
 
-    // 8. Award DIRECT referral points (based on product points)
+    // 8. Award DIRECT referral points
     if (directReferrerId && directReferralPoints > 0) {
       const { data: referrerProfile } = await supabase
         .from("profiles")
@@ -158,7 +155,6 @@ export async function activateNewUser(
         .single();
 
       if (referrerProfile) {
-        // Update referrer stats
         await supabase
           .from("profiles")
           .update({
@@ -173,7 +169,6 @@ export async function activateNewUser(
           })
           .eq("id", directReferrerId);
 
-        // Direct referral points history
         await supabase.from("points_history").insert({
           user_id: directReferrerId,
           points: directReferralPoints,
@@ -193,7 +188,6 @@ export async function activateNewUser(
           created_at: new Date().toISOString(),
         });
 
-        // Activity log for direct referrer
         await supabase.from("activities").insert({
           user_id: directReferrerId,
           title: "Direct Referral Activation Bonus",
@@ -206,7 +200,7 @@ export async function activateNewUser(
       }
     }
 
-    // 9. Award INDIRECT referral points (based on product points)
+    // 9. Award INDIRECT referral points
     if (indirectReferrerId && indirectReferralPoints > 0) {
       const { data: indirectProfile } = await supabase
         .from("profiles")
@@ -215,7 +209,6 @@ export async function activateNewUser(
         .single();
 
       if (indirectProfile) {
-        // Update indirect referrer stats
         await supabase
           .from("profiles")
           .update({
@@ -229,7 +222,6 @@ export async function activateNewUser(
           })
           .eq("id", indirectReferrerId);
 
-        // Indirect referral points history
         await supabase.from("points_history").insert({
           user_id: indirectReferrerId,
           points: indirectReferralPoints,
@@ -249,7 +241,6 @@ export async function activateNewUser(
           created_at: new Date().toISOString(),
         });
 
-        // Activity log for indirect referrer
         await supabase.from("activities").insert({
           user_id: indirectReferrerId,
           title: "Indirect Referral Bonus",
@@ -267,7 +258,6 @@ export async function activateNewUser(
     const month = now.getMonth() + 1;
     const year = now.getFullYear();
 
-    // Update direct referrer's monthly stats
     if (directReferrerId && directReferralPoints > 0) {
       await supabase
         .from("monthly_statistics")
@@ -288,7 +278,6 @@ export async function activateNewUser(
         });
     }
 
-    // Update indirect referrer's monthly stats
     if (indirectReferrerId && indirectReferralPoints > 0) {
       await supabase
         .from("monthly_statistics")

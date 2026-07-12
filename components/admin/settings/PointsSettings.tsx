@@ -6,7 +6,7 @@ import { showToast } from "@/components/ui/toast";
 import SettingCard from "./SettingCard";
 
 type Settings = {
-  points_rate: number;
+  points_to_naira: number;  // Changed from points_rate
   direct_referral_percentage: number;
   indirect_referral_percentage: number;
   max_direct_referrals: number;
@@ -15,7 +15,7 @@ type Settings = {
 
 export default function PointsSettings() {
   const [settings, setSettings] = useState<Settings>({
-    points_rate: 10,
+    points_to_naira: 10,  // Changed from points_rate
     direct_referral_percentage: 10,
     indirect_referral_percentage: 5,
     max_direct_referrals: 20,
@@ -33,7 +33,7 @@ export default function PointsSettings() {
       const { data, error } = await supabase
         .from("company_settings")
         .select(
-          "points_rate, direct_referral_percentage, indirect_referral_percentage, max_direct_referrals, monthly_reset_day"
+          "points_to_naira, direct_referral_percentage, indirect_referral_percentage, max_direct_referrals, monthly_reset_day"  // Changed from points_rate
         )
         .eq("id", 1)
         .single();
@@ -41,7 +41,7 @@ export default function PointsSettings() {
       if (error) {
         console.error("Error loading points settings:", error);
         setSettings({
-          points_rate: 10,
+          points_to_naira: 10,
           direct_referral_percentage: 10,
           indirect_referral_percentage: 5,
           max_direct_referrals: 20,
@@ -53,7 +53,7 @@ export default function PointsSettings() {
 
       if (data) {
         setSettings({
-          points_rate: data.points_rate ?? 10,
+          points_to_naira: data.points_to_naira ?? 10,  // Changed from points_rate
           direct_referral_percentage: data.direct_referral_percentage ?? 10,
           indirect_referral_percentage: data.indirect_referral_percentage ?? 5,
           max_direct_referrals: data.max_direct_referrals ?? 20,
@@ -79,7 +79,7 @@ export default function PointsSettings() {
       console.log("Saving points settings:", settings);
 
       const updateData = {
-        points_rate: settings.points_rate || 10,
+        points_to_naira: settings.points_to_naira || 10,  // Changed from points_rate
         direct_referral_percentage: settings.direct_referral_percentage || 10,
         indirect_referral_percentage: settings.indirect_referral_percentage || 5,
         max_direct_referrals: settings.max_direct_referrals || 20,
@@ -139,20 +139,20 @@ export default function PointsSettings() {
           <p className="text-sm text-emerald-400">⚠️ These settings affect the entire platform. Changes will apply to all future transactions.</p>
         </div>
 
-        {/* Points Rate */}
+        {/* Points to Naira Rate */}
         <div>
-          <label className="block text-sm font-medium text-slate-400">Points Rate (₦ per point)</label>
+          <label className="block text-sm font-medium text-slate-400">Points to Naira Rate (₦ per point)</label>
           <input
             type="number"
-            name="points_rate"
-            value={settings.points_rate ?? 10}
+            name="points_to_naira"  // Changed from points_rate
+            value={settings.points_to_naira ?? 10}
             onChange={handleNumberChange}
             min="1"
             step="0.5"
             className="mt-1 w-full rounded-lg border border-slate-800 bg-slate-900/50 px-4 py-2.5 text-white focus:border-emerald-500 focus:outline-none"
           />
           <p className="mt-1 text-xs text-slate-500">
-            Each point is worth ₦{settings.points_rate ?? 10} when calculating earnings
+            Each point is worth ₦{settings.points_to_naira ?? 10} when calculating withdrawal amounts
           </p>
         </div>
 
