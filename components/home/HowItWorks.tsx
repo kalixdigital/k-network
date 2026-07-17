@@ -7,7 +7,7 @@ const steps = [
     icon: UserPlus,
     title: "1. Join",
     description:
-      "Register, purchase our, upload your payment proof, and wait for admin approval.",
+      "Register, purchase our product, upload your payment proof, and wait for admin approval.",
     color: "text-emerald-400",
     bg: "bg-emerald-500/10",
     border: "border-emerald-500/20",
