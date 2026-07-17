@@ -144,6 +144,10 @@
   --body: #cbd5e1;
   --muted: #94a3b8;
 }
+/* globals.css */
+html {
+  scroll-behavior: smooth;
+}
 
 body {
   font-family: var(--font-body);
