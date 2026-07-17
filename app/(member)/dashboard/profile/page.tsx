@@ -33,7 +33,7 @@ type Profile = {
   monthly_points: number;
   lifetime_points: number;
   direct_referrals: number;
-  indirect_referrals: number;
+  // indirect_referrals removed
   is_verified: boolean;
   is_active: boolean;
   registration_completed: boolean;
@@ -163,14 +163,14 @@ export default function ProfilePage() {
         onEdit={handleEdit}
       />
 
-      {/* Stats */}
+      {/* Stats - Indirect referrals removed */}
       <ProfileStats
         points={profile.points}
         total_earnings={profile.total_earnings}
         monthly_points={profile.monthly_points}
         lifetime_points={profile.lifetime_points}
         direct_referrals={profile.direct_referrals}
-        indirect_referrals={profile.indirect_referrals}
+        // indirect_referrals removed
         userLevel={profile.membership_level}
       />
 

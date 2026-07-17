@@ -121,35 +121,59 @@ export default function MemberDetailsModal({ member, isOpen, onClose }: MemberDe
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div
+        className="
+          relative
+          w-full
+          max-w-md
+          sm:max-w-xl
+          lg:max-w-2xl
+          max-h-[80vh]
+          overflow-y-auto
+          rounded-2xl
+          border
+          border-slate-800
+          bg-slate-900
+          shadow-2xl
+          p-4
+          sm:p-6
+          animate-in fade-in zoom-in-95 duration-200
+        "
+      >
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute right-4 top-4 rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white transition"
+          className="absolute right-3 top-3 rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white transition"
         >
           <X className="h-5 w-5" />
         </button>
 
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-6">
-          <div className={`flex h-16 w-16 items-center justify-center rounded-full ${levelBg} bg-opacity-20 text-3xl font-bold ${levelColor}`}>
+        {/* Header - Clean and centered */}
+        <div className="mb-5 flex items-center gap-3">
+          <div
+            className={`flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-full ${levelBg} bg-opacity-20 text-2xl sm:text-3xl font-bold ${levelColor} flex-shrink-0`}
+          >
             {member.full_name?.charAt(0) || "U"}
           </div>
-          <div>
-            <h2 className="text-xl font-bold text-white">{member.full_name}</h2>
-            <p className="text-sm text-slate-400">{member.id_number}</p>
+          <div className="min-w-0 flex-1">
+            <h2 className="truncate text-lg sm:text-xl font-bold text-white">
+              {member.full_name}
+            </h2>
+            <p className="truncate text-xs sm:text-sm text-slate-400">
+              {member.id_number}
+            </p>
           </div>
         </div>
 
-        {/* Info Sections */}
-        <div className="grid gap-4 md:grid-cols-2">
+        {/* Info Sections - Clean grid */}
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {infoSections.map((section, index) => {
             const Icon = section.icon;
             return (
               <div
                 key={index}
-                className={`rounded-xl border ${levelData.borderColor} bg-slate-900/50 p-4`}
+                className={`rounded-xl border ${levelData.borderColor} bg-slate-900/50 p-3 sm:p-4`}
               >
                 <div className="flex items-center gap-2 mb-3">
                   <div className={`rounded-lg ${levelData.badgeBg} p-1.5`}>
@@ -157,13 +181,15 @@ export default function MemberDetailsModal({ member, isOpen, onClose }: MemberDe
                   </div>
                   <h3 className="font-semibold text-white text-sm">{section.title}</h3>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {section.fields.map((field, fieldIndex) => (
-                    <div key={fieldIndex}>
-                      <p className="text-xs text-slate-400">{field.label}</p>
-                      <p className="text-sm font-medium text-white">
-                        {typeof field.value === 'string' ? field.value : field.value}
+                    <div key={fieldIndex} className="space-y-0.5">
+                      <p className="text-[11px] text-slate-400">
+                        {field.label}
                       </p>
+                      <div className="break-words text-sm font-medium text-white">
+                        {typeof field.value === 'string' ? field.value : field.value}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -172,11 +198,11 @@ export default function MemberDetailsModal({ member, isOpen, onClose }: MemberDe
           })}
         </div>
 
-        {/* Footer */}
-        <div className="mt-4 border-t border-slate-800 pt-4 flex justify-end">
+        {/* Footer - Centered close button */}
+        <div className="mt-5 flex justify-center border-t border-slate-800 pt-4">
           <button
             onClick={onClose}
-            className="rounded-lg border border-slate-700 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800 transition"
+            className="rounded-xl bg-emerald-600 px-6 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500"
           >
             Close
           </button>

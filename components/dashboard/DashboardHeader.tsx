@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { showToast } from "@/components/ui/toast";
@@ -18,7 +19,7 @@ import {
   Gift,
   GitBranch,
   CircleUser,
-  TrendingUp // Add this import for the Points Engine icon
+  TrendingUp
 } from "lucide-react";
 import NotificationsPanel from "./NotificationsPanel";
 
@@ -29,6 +30,8 @@ export default function DashboardHeader() {
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [siteLogo, setSiteLogo] = useState<string | null>(null);
+  const [siteName, setSiteName] = useState("K-NETWORK");
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -57,6 +60,33 @@ export default function DashboardHeader() {
       }
     };
     loadUser();
+  }, []);
+
+  // Load company settings for logo
+  useEffect(() => {
+    async function loadCompanySettings() {
+      try {
+        const { data, error } = await supabase
+          .from("company_settings")
+          .select("site_logo, site_name")
+          .eq("id", 1)
+          .single();
+
+        if (error) {
+          console.error("Error loading company settings:", error);
+          return;
+        }
+
+        if (data) {
+          setSiteLogo(data.site_logo || null);
+          if (data.site_name) setSiteName(data.site_name);
+        }
+      } catch (error) {
+        console.error("Error loading company settings:", error);
+      }
+    }
+
+    loadCompanySettings();
   }, []);
 
   // Close menu when clicking outside
@@ -113,7 +143,7 @@ export default function DashboardHeader() {
       show: true,
     },
     {
-      label: "Points Engine", // New menu item
+      label: "Points Engine",
       icon: TrendingUp,
       href: "/dashboard/points-engine",
       show: true,
@@ -175,16 +205,38 @@ export default function DashboardHeader() {
     );
   };
 
+  // Render logo - LARGER SIZE
+  const renderLogo = () => {
+    if (siteLogo) {
+      return (
+        <div className="relative h-10 w-10 md:h-12 md:w-12 flex-shrink-0">
+          <Image
+            src={siteLogo}
+            alt={siteName}
+            fill
+            className="object-contain"
+            priority
+          />
+        </div>
+      );
+    }
+
+    // Fallback to the "K" letter
+    return (
+      <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${levelBg} font-bold text-white md:h-12 md:w-12`}>
+        K
+      </div>
+    );
+  };
+
   return (
     <header className="fixed left-0 right-0 top-0 z-50 border-b border-slate-800 bg-slate-900/95 px-4 py-3 backdrop-blur-xl md:px-6 md:py-4">
       <div className="mx-auto flex max-w-7xl items-center justify-between">
         {/* Logo */}
-        <Link href="/dashboard" className="flex items-center gap-2">
-          <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${levelBg} font-bold text-white md:h-9 md:w-9`}>
-            K
-          </div>
+        <Link href="/dashboard" className="flex items-center gap-3">
+          {renderLogo()}
           <div className="hidden sm:block">
-            <h1 className="text-lg font-bold text-white md:text-xl">K-NETWORK</h1>
+            <h1 className="text-lg font-bold text-white md:text-xl">{siteName}</h1>
             <p className="text-xs text-slate-400">Member Dashboard</p>
           </div>
         </Link>

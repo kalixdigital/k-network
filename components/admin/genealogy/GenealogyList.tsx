@@ -1,30 +1,37 @@
-"use client";
+// components/admin/genealogy/GenealogyList.tsx - Updated
+
+'use client';
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { showToast } from "@/components/ui/toast";
-import { Search, Users, ChevronRight, ChevronDown, User, Award } from "lucide-react";
-import SearchBar from "@/components/admin/SearchBar";
-
-type Member = {
-  id: string;
-  full_name: string;
-  email: string;
-  id_number: string;
-  membership_level: number;
-  direct_referrals: number;
-  indirect_referrals: number;
-  is_verified: boolean;
-  referred_by: string | null;
-  created_at: string;
-};
-
-type TreeNode = {
-  member: Member;
-  children: TreeNode[];
-  level: number;
-};
+import { 
+  Users, 
+  Search, 
+  RefreshCw,
+  ChevronDown,
+  ChevronRight,
+  User,
+  Award,
+  Calendar,
+  Mail,
+  Phone,
+  MapPin,
+  CheckCircle,
+  XCircle,
+  Crown,
+  TrendingUp,
+  UserPlus,
+  GitBranch,
+  Eye
+} from "lucide-react";
+import { getLevel, getLevelName } from "@/lib/constants/levels";
+import MemberDetailsModal from "./MemberDetailsModal";
+import GenealogyStats from "./GenealogyStats";
+import GenealogySearch from "./GenealogySearch";
+import GenealogyTreeNode from "./GenealogyTreeNode";
+import type { Member, TreeNode } from "./types";
 
 export default function GenealogyList() {
   const router = useRouter();
@@ -32,26 +39,33 @@ export default function GenealogyList() {
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
+  const [expandedAll, setExpandedAll] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const loadMembers = useCallback(async () => {
     setLoading(true);
     try {
-      // Get all members with their referral relationships
       const { data, error } = await supabase
         .from("profiles")
         .select(`
           id,
           full_name,
           email,
+          phone,
           id_number,
           membership_level,
           direct_referrals,
           indirect_referrals,
           is_verified,
+          is_active,
           referred_by,
-          created_at
+          created_at,
+          country,
+          state,
+          points,
+          total_earnings
         `)
         .order("created_at", { ascending: true });
 
@@ -59,7 +73,6 @@ export default function GenealogyList() {
 
       setMembers(data || []);
       
-      // Build the tree
       if (data && data.length > 0) {
         const treeData = buildTree(data);
         setTree(treeData);
@@ -83,10 +96,6 @@ export default function GenealogyList() {
   }, [loadMembers]);
 
   const buildTree = (members: Member[]): TreeNode[] => {
-    // Find root members (those with no referrer or referred_by is null)
-    const memberMap = new Map<string, Member>();
-    members.forEach(m => memberMap.set(m.id, m));
-
     const childrenMap = new Map<string, Member[]>();
     members.forEach(m => {
       if (m.referred_by) {
@@ -96,18 +105,13 @@ export default function GenealogyList() {
       }
     });
 
-    // Find root nodes (members with no referrer)
     const roots = members.filter(m => !m.referred_by || m.referred_by === null);
 
     const buildNode = (member: Member, level: number): TreeNode => {
       const children = (childrenMap.get(member.id) || []).map(child => 
         buildNode(child, level + 1)
       );
-      return {
-        member,
-        children,
-        level
-      };
+      return { member, children, level };
     };
 
     return roots.map(root => buildNode(root, 0));
@@ -147,135 +151,30 @@ export default function GenealogyList() {
     });
   };
 
+  const toggleAll = () => {
+    if (expandedAll) {
+      setExpandedNodes(new Set());
+      setExpandedAll(false);
+    } else {
+      const allIds = new Set<string>();
+      const collectIds = (nodes: TreeNode[]) => {
+        nodes.forEach(node => {
+          allIds.add(node.member.id);
+          collectIds(node.children);
+        });
+      };
+      collectIds(tree);
+      setExpandedNodes(allIds);
+      setExpandedAll(true);
+    }
+  };
+
   const handleViewMember = (memberId: string) => {
-    router.push(`/admin/members/${memberId}`);
+    setSelectedMemberId(memberId);
+    setIsModalOpen(true);
   };
 
-  const filteredMembers = members.filter(member =>
-    member.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    member.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    member.id_number?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const renderTreeNode = (node: TreeNode, index: number) => {
-    const isExpanded = expandedNodes.has(node.member.id);
-    const hasChildren = node.children.length > 0;
-    const downlineCount = getDownlineCount(node.member.id);
-
-    return (
-      <div key={node.member.id} className="relative">
-        <div 
-          className={`flex items-center gap-3 rounded-lg p-3 transition cursor-pointer ${
-            selectedMember?.id === node.member.id
-              ? "bg-emerald-500/20 border border-emerald-500/30"
-              : "hover:bg-slate-800/50"
-          }`}
-          style={{ marginLeft: `${node.level * 24}px` }}
-        >
-          {/* Tree Line */}
-          {node.level > 0 && (
-            <div className="absolute left-[-16px] top-1/2 h-px w-4 bg-slate-700" />
-          )}
-
-          {/* Expand/Collapse Button */}
-          {hasChildren && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleNode(node.member.id);
-              }}
-              className="flex h-6 w-6 items-center justify-center rounded-lg bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white"
-            >
-              {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-            </button>
-          )}
-          {!hasChildren && <div className="w-6" />}
-
-          {/* Avatar */}
-          <div className={`flex h-10 w-10 items-center justify-center rounded-full ${
-            node.member.is_verified
-              ? "bg-emerald-500/20 text-emerald-400"
-              : "bg-slate-700 text-slate-400"
-          }`}>
-            <User className="h-5 w-5" />
-          </div>
-
-          {/* Member Info */}
-          <div 
-            className="flex-1 min-w-0"
-            onClick={() => {
-              setSelectedMember(node.member);
-              handleViewMember(node.member.id);
-            }}
-          >
-            <div className="flex items-center gap-2">
-              <span className="font-medium text-white truncate">
-                {node.member.full_name || "Unknown"}
-              </span>
-              <span className="text-xs text-slate-400">
-                {node.member.id_number}
-              </span>
-              {!node.member.is_verified && (
-                <span className="text-xs text-yellow-400">(Pending)</span>
-              )}
-            </div>
-            <div className="flex items-center gap-4 text-xs text-slate-400">
-              <span>Level {node.member.membership_level}</span>
-              <span>•</span>
-              <span>{node.children.length} direct</span>
-              <span>•</span>
-              <span>{downlineCount} downline</span>
-              <span className="flex items-center gap-1 text-yellow-400">
-                <Award className="h-3 w-3" />
-                {node.member.direct_referrals || 0}
-              </span>
-            </div>
-          </div>
-
-          {/* View Button */}
-          <button
-            onClick={() => handleViewMember(node.member.id)}
-            className="rounded-lg px-3 py-1 text-sm text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300"
-          >
-            View
-          </button>
-        </div>
-
-        {/* Children */}
-        {isExpanded && hasChildren && (
-          <div className="mt-1 space-y-1">
-            {node.children.map((child, idx) => (
-              <div key={child.member.id}>
-                {renderTreeNode(child, idx)}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-emerald-400 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-slate-400 mt-4">Loading genealogy data...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (members.length === 0) {
-    return (
-      <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-12 text-center">
-        <Users className="mx-auto h-12 w-12 text-slate-600" />
-        <h3 className="mt-4 text-xl font-semibold text-white">No members yet</h3>
-        <p className="mt-2 text-slate-400">Members will appear here once they join</p>
-      </div>
-    );
-  }
-
+  // Filter tree based on search
   const filteredTree = searchQuery ? 
     tree.filter(node => {
       const matches = (node: TreeNode): boolean => {
@@ -291,33 +190,134 @@ export default function GenealogyList() {
       return matches(node);
     }) : tree;
 
-  return (
-    <div className="space-y-6">
-      {/* Search */}
-      <div className="flex flex-wrap items-center gap-4">
-        <div className="w-full sm:max-w-[300px]">
-          <SearchBar
-            placeholder="Search by name, email, or member ID..."
-            onSearch={setSearchQuery}
-          />
+  const stats = {
+    total: members.length,
+    verified: members.filter(m => m.is_verified).length,
+    pending: members.filter(m => !m.is_verified).length,
+    active: members.filter(m => m.is_active).length,
+    rootMembers: tree.length,
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 border-4 border-emerald-400 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-slate-400 mt-3 text-sm sm:text-base">Loading genealogy data...</p>
         </div>
-        <div className="text-sm text-slate-400">
-          {members.length} total members • {tree.length} root members
+      </div>
+    );
+  }
+
+  if (members.length === 0) {
+    return (
+      <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-8 sm:p-12 text-center">
+        <Users className="mx-auto h-10 w-10 sm:h-12 sm:w-12 text-slate-600" />
+        <h3 className="mt-4 text-lg sm:text-xl font-semibold text-white">No members yet</h3>
+        <p className="mt-2 text-sm sm:text-base text-slate-400">Members will appear here once they join</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4 sm:space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
+            <GitBranch className="h-5 w-5 sm:h-6 sm:w-6 text-emerald-400" />
+            Genealogy Tree
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-400">View and manage your referral network structure</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggleAll}
+            className="text-xs sm:text-sm px-3 py-1.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 transition"
+          >
+            {expandedAll ? 'Collapse All' : 'Expand All'}
+          </button>
+          <button
+            onClick={loadMembers}
+            className="text-xs sm:text-sm px-3 py-1.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 transition"
+          >
+            <RefreshCw className="h-4 w-4" />
+          </button>
         </div>
       </div>
 
-      {/* Genealogy Tree */}
-      <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
-        <div className="space-y-2">
-          {filteredTree.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-slate-400">No members found matching your search</p>
-            </div>
-          ) : (
-            filteredTree.map((node, index) => renderTreeNode(node, index))
-          )}
-        </div>
+      {/* Stats */}
+      <GenealogyStats stats={stats} />
+
+      {/* Search */}
+      <GenealogySearch
+        value={searchQuery}
+        onChange={setSearchQuery}
+        totalMembers={members.length}
+      />
+
+      {/* Tree */}
+      <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-3 sm:p-6 overflow-x-auto">
+        {filteredTree.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-slate-400 text-sm">No members found matching your search</p>
+          </div>
+        ) : (
+          <div className="space-y-1.5 sm:space-y-2 min-w-[300px]">
+            {filteredTree.map((node) => (
+              <GenealogyTreeNode
+                key={node.member.id}
+                node={node}
+                isExpanded={expandedNodes.has(node.member.id)}
+                onToggle={toggleNode}
+                onView={handleViewMember}
+                getDownlineCount={getDownlineCount}
+                selectedMemberId={selectedMemberId}
+                expandedNodes={expandedNodes} // ✅ Pass expandedNodes down
+              />
+            ))}
+          </div>
+        )}
       </div>
+
+      {/* Legend */}
+      <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-[10px] sm:text-xs text-slate-400">
+        <span className="flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+          Verified
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-full bg-yellow-500" />
+          Pending
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-full bg-blue-500" />
+          Active
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-full bg-slate-600" />
+          Level 1
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-full bg-purple-500" />
+          Level 2+
+        </span>
+        <span className="text-slate-500 ml-auto hidden sm:block">
+          Click on a member to view details
+        </span>
+      </div>
+
+      {/* Member Details Modal */}
+      {selectedMemberId && (
+        <MemberDetailsModal
+          memberId={selectedMemberId}
+          isOpen={isModalOpen}
+          onClose={() => {
+            setIsModalOpen(false);
+            setSelectedMemberId(null);
+          }}
+        />
+      )}
     </div>
   );
 }

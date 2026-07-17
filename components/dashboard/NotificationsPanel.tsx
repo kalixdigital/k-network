@@ -204,125 +204,139 @@ export default function NotificationsPanel() {
         <>
           {/* Backdrop for mobile */}
           <div 
-            className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
+            className="fixed inset-0 z-[9998] bg-black/50 backdrop-blur-sm lg:hidden"
             onClick={() => setIsOpen(false)}
           />
           
+          {/* 
+            Fix 1 & 2: Better mobile positioning
+            - Centered on mobile (fixed positioning)
+            - Dropdown on desktop (absolute positioning)
+          */}
           <div 
-            className={`absolute right-0 mt-2 w-[calc(100vw-32px)] sm:w-[380px] md:max-w-[380px] rounded-xl border ${levelBorder} bg-slate-900/95 shadow-2xl backdrop-blur-xl overflow-hidden z-50 origin-top-right transition-all duration-200`}
-            style={{ 
-              right: '0px',
-              left: 'auto',
-            }}
+            className={`
+              fixed top-16 left-1/2 -translate-x-1/2 
+              w-[92vw] max-w-sm 
+              rounded-xl border ${levelBorder} 
+              bg-slate-900/95 shadow-2xl backdrop-blur-xl 
+              overflow-hidden 
+              z-[9999] 
+              transition-all duration-200
+              lg:absolute lg:right-2 lg:left-auto lg:top-full lg:mt-3 lg:w-[380px] lg:max-w-[380px] lg:-translate-x-0
+              origin-top-right
+            `}
           >
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-slate-800 px-3 py-2.5 md:px-4 md:py-3">
-              <div className="flex items-center gap-2 min-w-0">
-                <Bell className={`h-4 w-4 flex-shrink-0 ${levelColor}`} />
-                <h3 className="text-sm font-semibold text-white md:text-base truncate">Notifications</h3>
-                {unreadCount > 0 && (
-                  <span className={`rounded-full ${levelBg} bg-opacity-20 px-1.5 py-0.5 text-[10px] ${levelColor} md:px-2 md:text-xs flex-shrink-0`}>
-                    {unreadCount} new
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
-                {unreadCount > 0 && (
+            {/* Fix 5: Horizontal padding for very small screens */}
+            <div className="px-2 sm:px-0">
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-slate-800 px-3 py-2.5 md:px-4 md:py-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Bell className={`h-4 w-4 flex-shrink-0 ${levelColor}`} />
+                  <h3 className="text-sm font-semibold text-white md:text-base truncate">Notifications</h3>
+                  {unreadCount > 0 && (
+                    <span className={`rounded-full ${levelBg} bg-opacity-20 px-1.5 py-0.5 text-[10px] ${levelColor} md:px-2 md:text-xs flex-shrink-0`}>
+                      {unreadCount} new
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
+                  {unreadCount > 0 && (
+                    <button
+                      onClick={markAllAsRead}
+                      className={`text-[10px] ${levelColor} hover:opacity-80 transition md:text-xs whitespace-nowrap`}
+                    >
+                      Mark all read
+                    </button>
+                  )}
                   <button
-                    onClick={markAllAsRead}
-                    className={`text-[10px] ${levelColor} hover:opacity-80 transition md:text-xs whitespace-nowrap`}
+                    onClick={() => setIsOpen(false)}
+                    className="rounded-lg p-1 hover:bg-slate-800 transition"
                   >
-                    Mark all read
+                    <X className="h-3.5 w-3.5 text-slate-400 md:h-4 md:w-4" />
                   </button>
-                )}
-                <button
-                  onClick={() => setIsOpen(false)}
-                  className="rounded-lg p-1 hover:bg-slate-800 transition"
-                >
-                  <X className="h-3.5 w-3.5 text-slate-400 md:h-4 md:w-4" />
-                </button>
+                </div>
               </div>
-            </div>
 
-            {/* Notifications List */}
-            <div className="max-h-[300px] overflow-y-auto md:max-h-[400px]">
-              {loading ? (
-                <div className="flex items-center justify-center py-8 md:py-12">
-                  <div className={`h-5 w-5 animate-spin rounded-full border-2 ${levelBg} border-t-transparent md:h-6 md:w-6`} />
-                </div>
-              ) : notifications.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-8 px-4 text-center md:py-12">
-                  <BellOff className="h-10 w-10 text-slate-600 md:h-12 md:w-12" />
-                  <p className="mt-2 text-xs text-slate-400 md:mt-3 md:text-sm">No notifications yet</p>
-                  <p className="text-[10px] text-slate-500 md:text-xs">
-                    We'll notify you when something important happens
-                  </p>
-                </div>
-              ) : (
-                <div className="divide-y divide-slate-800">
-                  {notifications.map((notification) => {
-                    const Icon = notificationIcons[notification.type] || notificationIcons.system;
-                    const color = notificationColors[notification.type] || notificationColors.system;
-                    const isUnread = !notification.is_read;
-                    const isMembership = notification.type === "membership";
+              {/* Fix 4: Increased max height */}
+              <div className="max-h-[70vh] md:max-h-[400px] overflow-y-auto">
+                {loading ? (
+                  <div className="flex items-center justify-center py-8 md:py-12">
+                    <div className={`h-5 w-5 animate-spin rounded-full border-2 ${levelBg} border-t-transparent md:h-6 md:w-6`} />
+                  </div>
+                ) : notifications.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-8 px-4 text-center md:py-12">
+                    <BellOff className="h-10 w-10 text-slate-600 md:h-12 md:w-12" />
+                    <p className="mt-2 text-xs text-slate-400 md:mt-3 md:text-sm">No notifications yet</p>
+                    <p className="text-[10px] text-slate-500 md:text-xs">
+                      We'll notify you when something important happens
+                    </p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-800">
+                    {notifications.map((notification) => {
+                      const Icon = notificationIcons[notification.type] || notificationIcons.system;
+                      const color = notificationColors[notification.type] || notificationColors.system;
+                      const isUnread = !notification.is_read;
+                      const isMembership = notification.type === "membership";
 
-                    return (
-                      <div
-                        key={notification.id}
-                        className={`group flex items-start gap-2 px-3 py-2.5 transition hover:bg-slate-800/50 md:gap-3 md:px-4 md:py-3 ${
-                          isUnread ? `${levelBg} bg-opacity-5` : ""
-                        }`}
-                        onClick={() => markAsRead(notification.id)}
-                      >
-                        {/* Icon */}
-                        <div className="relative flex-shrink-0">
-                          <div className={`mt-0.5 rounded-full p-1 md:p-1.5 ${color}`}>
-                            {Icon}
-                          </div>
-                          {isMembership && (
-                            <div className="absolute -top-1 -right-1">
-                              <span className="flex h-2.5 w-2.5 md:h-3 md:w-3">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-yellow-400 md:h-3 md:w-3"></span>
-                              </span>
+                      return (
+                        <div
+                          key={notification.id}
+                          className={`group flex items-start gap-2 px-3 py-2.5 transition hover:bg-slate-800/50 md:gap-3 md:px-4 md:py-3 ${
+                            isUnread ? `${levelBg} bg-opacity-5` : ""
+                          }`}
+                          onClick={() => markAsRead(notification.id)}
+                        >
+                          {/* Icon */}
+                          <div className="relative flex-shrink-0">
+                            <div className={`mt-0.5 rounded-full p-1 md:p-1.5 ${color}`}>
+                              {Icon}
                             </div>
-                          )}
-                        </div>
-
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-start justify-between gap-1 md:gap-2">
-                            <p className={`text-xs ${isUnread ? "font-semibold text-white" : "text-slate-300"} md:text-sm break-words`}>
-                              {notification.title}
-                            </p>
-                            {isUnread && (
-                              <span className={`mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full ${levelBg} md:h-2 md:w-2`} />
+                            {isMembership && (
+                              <div className="absolute -top-1 -right-1">
+                                <span className="flex h-2.5 w-2.5 md:h-3 md:w-3">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-yellow-400 md:h-3 md:w-3"></span>
+                                </span>
+                              </div>
                             )}
                           </div>
-                          <p className="text-[10px] text-slate-400 md:text-xs line-clamp-2 break-words">
-                            {notification.description}
-                          </p>
-                          <p className="mt-0.5 flex items-center gap-1 text-[10px] text-slate-500 md:mt-1 md:text-xs">
-                            <Clock className="h-2.5 w-2.5 md:h-3 md:w-3 flex-shrink-0" />
-                            {formatDate(notification.created_at)}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
 
-            {/* Footer */}
-            <div className="border-t border-slate-800 px-3 py-1.5 text-center md:px-4 md:py-2">
-              <Link
-                href="/dashboard/notifications"
-                onClick={() => setIsOpen(false)}
-                className={`text-[10px] ${levelColor} hover:opacity-80 transition flex items-center justify-center gap-1 md:text-xs w-full`}
-              >
-                View all notifications
-                <ChevronRight className="h-3 w-3 flex-shrink-0" />
-              </Link>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-1 md:gap-2">
+                              <p className={`text-xs ${isUnread ? "font-semibold text-white" : "text-slate-300"} md:text-sm break-words`}>
+                                {notification.title}
+                              </p>
+                              {isUnread && (
+                                <span className={`mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full ${levelBg} md:h-2 md:w-2`} />
+                              )}
+                            </div>
+                            <p className="text-[10px] text-slate-400 md:text-xs line-clamp-2 break-words">
+                              {notification.description}
+                            </p>
+                            <p className="mt-0.5 flex items-center gap-1 text-[10px] text-slate-500 md:mt-1 md:text-xs">
+                              <Clock className="h-2.5 w-2.5 md:h-3 md:w-3 flex-shrink-0" />
+                              {formatDate(notification.created_at)}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="border-t border-slate-800 px-3 py-1.5 text-center md:px-4 md:py-2">
+                <Link
+                  href="/dashboard/notifications"
+                  onClick={() => setIsOpen(false)}
+                  className={`text-[10px] ${levelColor} hover:opacity-80 transition flex items-center justify-center gap-1 md:text-xs w-full`}
+                >
+                  View all notifications
+                  <ChevronRight className="h-3 w-3 flex-shrink-0" />
+                </Link>
+              </div>
             </div>
           </div>
         </>

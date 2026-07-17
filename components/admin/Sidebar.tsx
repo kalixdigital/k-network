@@ -13,6 +13,7 @@ import {
   Activity,
   FileBarChart,
   FileText,
+  Award, // Added for Promotion
 } from "lucide-react";
 
 type SidebarProps = {
@@ -29,6 +30,7 @@ export default function Sidebar({ pathname, isMobileMenuOpen, onClose }: Sidebar
     { href: "/admin/members", label: "Members", icon: Users },
     { href: "/admin/withdrawals", label: "Withdrawals", icon: Wallet },
     { href: "/admin/commissions", label: "Commissions", icon: TrendingUp },
+    { href: "/admin/promotions", label: "Promotions", icon: Award }, // NEW
     { href: "/admin/genealogy", label: "Genealogy", icon: GitBranch },
     { href: "/admin/activities", label: "Activities", icon: Activity },
     { href: "/admin/reports", label: "Reports", icon: FileBarChart },

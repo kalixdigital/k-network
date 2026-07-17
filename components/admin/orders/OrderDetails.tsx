@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { showToast } from "@/components/ui/toast";
@@ -10,12 +10,18 @@ import {
   XCircle,
   Eye,
   RefreshCw,
+  AlertCircle,
 } from "lucide-react";
 import StatusBadge from "@/components/admin/StatusBadge";
 import ConfirmDialog from "@/components/admin/ConfirmDialog";
+import PromotionEligibleUsers from "@/components/admin/PromotionEligibleUsers";
 import { activateNewUser } from "@/lib/services/activateNewUser";
 import { processReturningUser } from "@/lib/services/processReturningUser";
-import { createNotification, NotificationTemplates, getAdminUsers } from "@/lib/services/notificationService";
+import { createNotification, getAdminUsers } from "@/lib/services/notificationService";
+
+// ============================================
+// TYPES
+// ============================================
 
 type Order = {
   id: string;
@@ -44,27 +50,44 @@ type OrderItem = {
   };
 };
 
+type NotificationType = 'purchase' | 'referral' | 'points' | 'withdrawal' | 'system' | 'membership' | 'activation';
+
 type Props = {
   id: string;
 };
 
+type UserProfile = {
+  full_name: string;
+  email: string;
+  referred_by: string | null;
+};
+
+// ============================================
+// COMPONENT
+// ============================================
+
 export default function OrderDetails({ id }: Props) {
   const router = useRouter();
+
+  // State
   const [order, setOrder] = useState<Order | null>(null);
   const [items, setItems] = useState<OrderItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const [userVerified, setUserVerified] = useState<boolean | null>(null);
   const [showApproveDialog, setShowApproveDialog] = useState(false);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [showCompleteDialog, setShowCompleteDialog] = useState(false);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
-  useEffect(() => {
-    loadOrderDetails();
-  }, [id]);
+  // ============================================
+  // DATA FETCHING
+  // ============================================
 
-  const loadOrderDetails = async () => {
+  const loadOrderDetails = useCallback(async () => {
     setLoading(true);
     try {
+      // Fetch order
       const { data: orderData, error: orderError } = await supabase
         .from("orders")
         .select("*")
@@ -81,6 +104,10 @@ export default function OrderDetails({ id }: Props) {
 
       setOrder(orderData);
 
+      // Fetch user profile
+      await loadUserProfile(orderData.user_id);
+
+      // Fetch order items
       const { data: itemsData, error: itemsError } = await supabase
         .from("order_items")
         .select(`
@@ -102,303 +129,361 @@ export default function OrderDetails({ id }: Props) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, router]);
 
-  // ============================================
-  // SEND NOTIFICATIONS HELPERS
-  // ============================================
-  
-  const sendUserNotification = async (userId: string, title: string, description: string, type: string, metadata: any) => {
+  const loadUserProfile = async (userId: string) => {
     try {
-      await createNotification({
-        userId,
-        title,
-        description,
-        type: type as any,
-        metadata,
-      });
-      console.log(`✅ User notification sent: ${title}`);
-      return true;
-    } catch (error) {
-      console.error("❌ Failed to send user notification:", error);
-      return false;
-    }
-  };
-
-  const sendAdminNotifications = async (title: string, description: string, metadata: any) => {
-    try {
-      const admins = await getAdminUsers();
-      
-      if (!admins || admins.length === 0) {
-        console.log("⚠️ No admins found to notify");
-        return;
-      }
-
-      let successCount = 0;
-      for (const admin of admins) {
-        try {
-          await createNotification({
-            userId: admin.id,
-            title,
-            description,
-            type: "system",
-            metadata,
-          });
-          successCount++;
-        } catch (error) {
-          console.error(`❌ Failed to notify admin ${admin.email}:`, error);
-        }
-      }
-      
-      console.log(`✅ Notified ${successCount} admin(s)`);
-    } catch (error) {
-      console.error("❌ Failed to send admin notifications:", error);
-    }
-  };
-
-  const updateOrderStatus = async (status: string, paymentStatus?: string) => {
-    setUpdating(true);
-    try {
-      const updates: any = { status };
-      if (paymentStatus) {
-        updates.payment_status = paymentStatus;
-      }
-
-      const { error } = await supabase
-        .from("orders")
-        .update(updates)
-        .eq("id", id);
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("full_name, email, referred_by, is_verified, is_active")
+        .eq("id", userId)
+        .single();
 
       if (error) throw error;
 
-      // Get user details for notifications
-      const { data: userProfile } = await supabase
-        .from("profiles")
-        .select("full_name, email")
-        .eq("id", order?.user_id)
-        .single();
-
-      const customerName = userProfile?.full_name || "Customer";
-
-      // ============================================
-      // SEND NOTIFICATIONS BASED ON STATUS CHANGE
-      // ============================================
-
-      // 1. ORDER APPROVED (Pending → Processing)
-      if (status === "processing" && paymentStatus === "paid") {
-        // User notification
-        await sendUserNotification(
-          order!.user_id,
-          "Order Approved! ✅",
-          `Your order #${order!.order_number} has been approved and is being processed. We'll notify you once it's completed.`,
-          "purchase",
-          {
-            order_id: order!.id,
-            order_number: order!.order_number,
-            status: "processing",
-          }
-        );
-
-        // Admin notification (status update)
-        await sendAdminNotifications(
-          "Order Status Updated 📦",
-          `Order #${order!.order_number} has been approved and is now being processed.`,
-          {
-            order_id: order!.id,
-            order_number: order!.order_number,
-            status: "processing",
-            customer: customerName,
-          }
-        );
-
-        showToast.success(`Order ${order!.order_number} approved successfully`);
-      }
-
-      // 2. ORDER COMPLETED (Processing → Completed)
-      else if (status === "completed") {
-        // User notification
-        await sendUserNotification(
-          order!.user_id,
-          "Order Completed! 🎉",
-          `Your order #${order!.order_number} has been completed. Thank you for your purchase! You earned ${order!.total_points} points.`,
-          "purchase",
-          {
-            order_id: order!.id,
-            order_number: order!.order_number,
-            status: "completed",
-            total_points: order!.total_points,
-          }
-        );
-
-        // Admin notification
-        await sendAdminNotifications(
-          "Order Completed 🎉",
-          `Order #${order!.order_number} has been completed. Total: ₦${order!.total.toLocaleString()}`,
-          {
-            order_id: order!.id,
-            order_number: order!.order_number,
-            status: "completed",
-            customer: customerName,
-            total: order!.total,
-          }
-        );
-
-        // ✅ Process order completion (points engine)
-        try {
-          const { data: previousOrders } = await supabase
-            .from("orders")
-            .select("id")
-            .eq("user_id", order?.user_id)
-            .eq("status", "completed")
-            .neq("id", id)
-            .limit(1);
-
-          const isFirstPurchase = !previousOrders || previousOrders.length === 0;
-
-          let result;
-          let isActivation = false;
-
-          if (isFirstPurchase) {
-            console.log("🎉 First purchase detected! Activating user...");
-            result = await activateNewUser(order!.user_id, id);
-            isActivation = true;
-          } else {
-            console.log("📦 Subsequent purchase - awarding points...");
-            result = await processReturningUser(order!.user_id, id);
-            isActivation = false;
-          }
-
-          if (result.success) {
-            let message = "";
-            
-            if (isActivation) {
-              message = `🎉 User activated! ${result.productPoints} product points awarded.`;
-              
-              // Send activation notification
-              await sendUserNotification(
-                order!.user_id,
-                "Account Activated! 🎉",
-                `Your account has been activated! You earned ${result.productPoints} product points from your first purchase.`,
-                "activation",
-                {
-                  order_id: order!.id,
-                  order_number: order!.order_number,
-                  points: result.productPoints,
-                }
-              );
-            } else {
-              message = `✅ Order completed! ${result.productPoints} product points awarded.`;
-              
-              // Send points notification for returning user
-              await sendUserNotification(
-                order!.user_id,
-                "Points Earned! ⭐",
-                `You earned ${result.productPoints} points from order #${order!.order_number}.`,
-                "points",
-                {
-                  order_id: order!.id,
-                  order_number: order!.order_number,
-                  points: result.productPoints,
-                }
-              );
-            }
-            
-            if (result.directReferralPoints && result.directReferralPoints > 0) {
-              message += ` Direct referrer earned ${result.directReferralPoints} points.`;
-              
-              // Find and notify referrer
-              const { data: userProfile } = await supabase
-                .from("profiles")
-                .select("referred_by")
-                .eq("id", order!.user_id)
-                .single();
-
-              if (userProfile?.referred_by) {
-                const { data: referrer } = await supabase
-                  .from("profiles")
-                  .select("id, full_name")
-                  .eq("id", userProfile.referred_by)
-                  .single();
-
-                if (referrer) {
-                  await sendUserNotification(
-                    referrer.id,
-                    "Referral Bonus Earned! 🎉",
-                    `You earned ${result.directReferralPoints} points from ${customerName}'s purchase!`,
-                    "referral",
-                    {
-                      order_id: order!.id,
-                      order_number: order!.order_number,
-                      points: result.directReferralPoints,
-                      referred_user: customerName,
-                    }
-                  );
-                }
-              }
-            }
-            
-            if (result.indirectReferralPoints && result.indirectReferralPoints > 0) {
-              message += ` Indirect referrer earned ${result.indirectReferralPoints} points.`;
-            }
-            
-            showToast.success(message);
-          } else {
-            showToast.warning(`Order completed but processing failed: ${result.error}`);
-          }
-        } catch (engineError) {
-          console.error("Points engine error:", engineError);
-          showToast.warning("Order completed but points may not have been awarded");
-        }
-      }
-
-      // 3. ORDER REJECTED (Pending/Processing → Cancelled)
-      else if (status === "cancelled") {
-        // User notification
-        await sendUserNotification(
-          order!.user_id,
-          "Order Cancelled ❌",
-          `Your order #${order!.order_number} has been cancelled. Please contact support if you have any questions.`,
-          "purchase",
-          {
-            order_id: order!.id,
-            order_number: order!.order_number,
-            status: "cancelled",
-          }
-        );
-
-        // Admin notification
-        await sendAdminNotifications(
-          "Order Cancelled ❌",
-          `Order #${order!.order_number} has been cancelled.`,
-          {
-            order_id: order!.id,
-            order_number: order!.order_number,
-            status: "cancelled",
-            customer: customerName,
-          }
-        );
-
-        showToast.success(`Order ${order!.order_number} cancelled`);
-      }
-
-      loadOrderDetails();
+      setUserProfile(data);
+      setUserVerified(data?.is_verified === true);
     } catch (error) {
-      console.error("Error updating order:", error);
-      showToast.error("Failed to update order");
-    } finally {
-      setUpdating(false);
-      setShowApproveDialog(false);
-      setShowRejectDialog(false);
-      setShowCompleteDialog(false);
+      console.error("Error loading user profile:", error);
+      setUserVerified(false);
     }
   };
 
-  const handleViewReceipt = () => {
+  // ============================================
+  // NOTIFICATIONS
+  // ============================================
+
+  const sendUserNotification = useCallback(
+    async (userId: string, title: string, description: string, type: NotificationType, metadata: any) => {
+      try {
+        await createNotification({ userId, title, description, type, metadata });
+        return true;
+      } catch (error) {
+        console.error("Failed to send user notification:", error);
+        return false;
+      }
+    },
+    []
+  );
+
+  const sendAdminNotifications = useCallback(
+    async (title: string, description: string, metadata: any) => {
+      try {
+        const admins = await getAdminUsers();
+        if (!admins?.length) return;
+
+        let successCount = 0;
+        for (const admin of admins) {
+          try {
+            await createNotification({
+              userId: admin.id,
+              title,
+              description,
+              type: "system",
+              metadata,
+            });
+            successCount++;
+          } catch (error) {
+            console.error(`Failed to notify admin ${admin.email}:`, error);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to send admin notifications:", error);
+      }
+    },
+    []
+  );
+
+  // ============================================
+  // ORDER STATUS UPDATES
+  // ============================================
+
+  const handleOrderApproved = useCallback(
+    async (orderData: Order, customerName: string) => {
+      await sendUserNotification(
+        orderData.user_id,
+        "Order Approved! ✅",
+        `Your order #${orderData.order_number} has been approved and is being processed.`,
+        "purchase",
+        {
+          order_id: orderData.id,
+          order_number: orderData.order_number,
+          status: "processing",
+        }
+      );
+
+      await sendAdminNotifications(
+        "Order Status Updated 📦",
+        `Order #${orderData.order_number} has been approved and is now being processed.`,
+        {
+          order_id: orderData.id,
+          order_number: orderData.order_number,
+          status: "processing",
+          customer: customerName,
+        }
+      );
+
+      showToast.success(`Order ${orderData.order_number} approved successfully`);
+    },
+    [sendUserNotification, sendAdminNotifications]
+  );
+
+  const handleOrderCompleted = useCallback(
+    async (orderData: Order, customerName: string) => {
+      // Notify user
+      await sendUserNotification(
+        orderData.user_id,
+        "Order Completed! 🎉",
+        `Your order #${orderData.order_number} has been completed. You earned ${orderData.total_points} points.`,
+        "purchase",
+        {
+          order_id: orderData.id,
+          order_number: orderData.order_number,
+          status: "completed",
+          total_points: orderData.total_points,
+        }
+      );
+
+      await sendAdminNotifications(
+        "Order Completed 🎉",
+        `Order #${orderData.order_number} has been completed. Total: ₦${orderData.total.toLocaleString()}`,
+        {
+          order_id: orderData.id,
+          order_number: orderData.order_number,
+          status: "completed",
+          customer: customerName,
+          total: orderData.total,
+        }
+      );
+
+      // Process points engine
+      await processOrderCompletion(orderData);
+    },
+    [sendUserNotification, sendAdminNotifications]
+  );
+
+  const processOrderCompletion = useCallback(
+    async (orderData: Order) => {
+      try {
+        // Check if this is the user's first purchase
+        const { data: previousOrders } = await supabase
+          .from("orders")
+          .select("id")
+          .eq("user_id", orderData.user_id)
+          .eq("status", "completed")
+          .neq("id", id)
+          .limit(1);
+  
+        const isFirstPurchase = !previousOrders?.length;
+  
+        let result;
+        let isActivation = false;
+  
+        if (isFirstPurchase) {
+          console.log("🎉 First purchase detected! Activating user...");
+          result = await activateNewUser(orderData.user_id, id);
+          isActivation = true;
+        } else {
+          console.log("📦 Subsequent purchase - awarding points...");
+          // ✅ Fix: Only pass 2 arguments
+          result = await processReturningUser(orderData.user_id, id);
+          isActivation = false;
+        }
+  
+        const isSuccess = result?.success === true;
+  
+        if (isSuccess) {
+          await handlePointsAwarded(result, orderData, isActivation);
+        } else {
+          showToast.warning(`Order completed but processing failed: ${result?.error || "Unknown error"}`);
+        }
+      } catch (error) {
+        console.error("Points engine error:", error);
+        showToast.warning("Order completed but points may not have been awarded");
+      }
+    },
+    [id]
+  );
+
+  const handlePointsAwarded = useCallback(
+    async (result: any, orderData: Order, isActivation: boolean) => {
+      const customerName = userProfile?.full_name || "Customer";
+      let message = "";
+
+      if (isActivation) {
+        message = `🎉 User activated! ${result.productPoints || 0} product points awarded.`;
+
+        await sendUserNotification(
+          orderData.user_id,
+          "Account Activated! 🎉",
+          `Your account has been activated! You earned ${result.productPoints || 0} product points.`,
+          "activation",
+          {
+            order_id: orderData.id,
+            order_number: orderData.order_number,
+            points: result.productPoints || 0,
+          }
+        );
+      } else {
+        message = `✅ Order completed! ${result.productPoints || 0} product points awarded.`;
+
+        await sendUserNotification(
+          orderData.user_id,
+          "Points Earned! ⭐",
+          `You earned ${result.productPoints || 0} points from order #${orderData.order_number}.`,
+          "points",
+          {
+            order_id: orderData.id,
+            order_number: orderData.order_number,
+            points: result.productPoints || 0,
+          }
+        );
+      }
+
+      // Handle referral bonuses
+      const directBonus = result.directReferralPoints || result.direct_referral_bonus || 0;
+      if (directBonus > 0 && userProfile?.referred_by) {
+        await handleReferralBonus(userProfile.referred_by, directBonus, customerName, orderData);
+        message += ` Direct referrer earned ${directBonus} points.`;
+      }
+
+      const indirectBonus = result.indirectReferralPoints || result.indirect_referral_bonus || 0;
+      if (indirectBonus > 0) {
+        message += ` Indirect referrer earned ${indirectBonus} points.`;
+      }
+
+      showToast.success(message);
+    },
+    [userProfile, sendUserNotification]
+  );
+
+  const handleReferralBonus = useCallback(
+    async (referrerId: string, points: number, customerName: string, orderData: Order) => {
+      const { data: referrer } = await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .eq("id", referrerId)
+        .single();
+
+      if (referrer) {
+        await sendUserNotification(
+          referrer.id,
+          "Referral Bonus Earned! 🎉",
+          `You earned ${points} points from ${customerName}'s purchase!`,
+          "referral",
+          {
+            order_id: orderData.id,
+            order_number: orderData.order_number,
+            points,
+            referred_user: customerName,
+          }
+        );
+      }
+    },
+    [sendUserNotification]
+  );
+
+  const handleOrderCancelled = useCallback(
+    async (orderData: Order, customerName: string) => {
+      await sendUserNotification(
+        orderData.user_id,
+        "Order Cancelled ❌",
+        `Your order #${orderData.order_number} has been cancelled.`,
+        "purchase",
+        {
+          order_id: orderData.id,
+          order_number: orderData.order_number,
+          status: "cancelled",
+        }
+      );
+
+      await sendAdminNotifications(
+        "Order Cancelled ❌",
+        `Order #${orderData.order_number} has been cancelled.`,
+        {
+          order_id: orderData.id,
+          order_number: orderData.order_number,
+          status: "cancelled",
+          customer: customerName,
+        }
+      );
+
+      showToast.success(`Order ${orderData.order_number} cancelled`);
+    },
+    [sendUserNotification, sendAdminNotifications]
+  );
+
+  const updateOrderStatus = useCallback(
+    async (status: string, paymentStatus?: string) => {
+      if (!order) return;
+
+      setUpdating(true);
+      try {
+        const updates: any = { status };
+        if (paymentStatus) updates.payment_status = paymentStatus;
+
+        const { error } = await supabase
+          .from("orders")
+          .update(updates)
+          .eq("id", id);
+
+        if (error) throw error;
+
+        const customerName = userProfile?.full_name || "Customer";
+
+        // Handle status-specific logic
+        if (status === "processing" && paymentStatus === "paid") {
+          await handleOrderApproved(order, customerName);
+        } else if (status === "completed") {
+          await handleOrderCompleted(order, customerName);
+        } else if (status === "cancelled") {
+          await handleOrderCancelled(order, customerName);
+        }
+
+        await loadOrderDetails();
+      } catch (error) {
+        console.error("Error updating order:", error);
+        showToast.error("Failed to update order");
+      } finally {
+        setUpdating(false);
+        setShowApproveDialog(false);
+        setShowRejectDialog(false);
+        setShowCompleteDialog(false);
+      }
+    },
+    [order, id, userProfile, handleOrderApproved, handleOrderCompleted, handleOrderCancelled, loadOrderDetails]
+  );
+
+  // ============================================
+  // HANDLERS
+  // ============================================
+
+  const handleApproveOrder = useCallback(() => {
+    if (!userVerified) {
+      showToast.error("Cannot approve order: User is not verified.");
+      return;
+    }
+    setShowApproveDialog(true);
+  }, [userVerified]);
+
+  const handleViewReceipt = useCallback(() => {
     if (order?.payment_proof) {
       const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/payment-receipts/${order.payment_proof}`;
       window.open(url, "_blank");
     }
-  };
+  }, [order]);
+
+  // ============================================
+  // EFFECTS
+  // ============================================
+
+  useEffect(() => {
+    loadOrderDetails();
+  }, [loadOrderDetails]);
+
+  // ============================================
+  // RENDER
+  // ============================================
 
   if (loading) {
     return (
@@ -448,18 +533,46 @@ export default function OrderDetails({ id }: Props) {
           <p className="text-sm text-slate-400">
             {new Date(order.created_at).toLocaleString()}
           </p>
-          <div className="mt-2 flex items-center gap-3">
+          <div className="mt-2 flex flex-wrap items-center gap-3">
             <StatusBadge status={order.status} type="order" />
             <StatusBadge status={order.payment_status} type="payment" />
+
+            {/* User Verification Status */}
+            {userVerified !== null && (
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${
+                  userVerified
+                    ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                    : "bg-red-500/20 text-red-400 border border-red-500/30"
+                }`}
+              >
+                {userVerified ? (
+                  <>
+                    <CheckCircle className="h-3 w-3" />
+                    User Verified
+                  </>
+                ) : (
+                  <>
+                    <AlertCircle className="h-3 w-3" />
+                    User Not Verified
+                  </>
+                )}
+              </span>
+            )}
           </div>
         </div>
 
         <div className="flex flex-wrap gap-3">
           {canApprove && (
             <button
-              onClick={() => setShowApproveDialog(true)}
-              disabled={updating}
-              className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white transition hover:bg-emerald-700 disabled:opacity-50"
+              onClick={handleApproveOrder}
+              disabled={updating || !userVerified}
+              className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 font-medium text-white transition disabled:opacity-50 ${
+                !userVerified
+                  ? "bg-slate-600 cursor-not-allowed"
+                  : "bg-emerald-600 hover:bg-emerald-700"
+              }`}
+              title={!userVerified ? "User must be verified before approving order" : ""}
             >
               <CheckCircle className="h-4 w-4" />
               Approve
@@ -498,6 +611,31 @@ export default function OrderDetails({ id }: Props) {
           </button>
         </div>
       </div>
+
+      {/* Warning Message if User Not Verified */}
+      {!userVerified && canApprove && (
+        <div className="rounded-2xl border border-yellow-500/20 bg-yellow-500/10 p-4">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-yellow-400 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="font-medium text-yellow-400">User Not Verified</p>
+              <p className="text-sm text-yellow-300/70">
+                This user has not been verified yet. Please verify the user before approving this order.
+                You can verify the user from the Member Details page.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ⭐ Promotion Eligible Users Section */}
+      {order && (
+        <PromotionEligibleUsers
+          userId={order.user_id}
+          orderId={order.id}
+          onPromotionComplete={loadOrderDetails}
+        />
+      )}
 
       {/* Order Content */}
       <div className="grid gap-6 lg:grid-cols-3">
@@ -570,6 +708,18 @@ export default function OrderDetails({ id }: Props) {
             <h2 className="text-xl font-bold text-white">Customer</h2>
             <div className="mt-4 space-y-2">
               <p className="text-slate-300">Member ID: {order.member_id}</p>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-slate-400">Status:</span>
+                {userVerified !== null && (
+                  <span
+                    className={`text-sm font-medium ${
+                      userVerified ? "text-emerald-400" : "text-red-400"
+                    }`}
+                  >
+                    {userVerified ? "✅ Verified" : "❌ Not Verified"}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { Award, Coins, Users, TrendingUp, Gift, Star } from "lucide-react";
+import { Award, Coins, Users, TrendingUp, Star } from "lucide-react";
 import { getLevel } from "@/lib/constants/levels";
 
 type ProfileStatsProps = {
@@ -9,7 +9,7 @@ type ProfileStatsProps = {
   monthly_points: number;
   lifetime_points: number;
   direct_referrals: number;
-  indirect_referrals: number;
+  // indirect_referrals removed
   userLevel?: number;
 };
 
@@ -19,7 +19,7 @@ export default function ProfileStats({
   monthly_points,
   lifetime_points,
   direct_referrals,
-  indirect_referrals,
+  // indirect_referrals removed
   userLevel = 1,
 }: ProfileStatsProps) {
   const levelData = getLevel(userLevel);
@@ -62,17 +62,11 @@ export default function ProfileStats({
       color: "text-cyan-400",
       bg: "bg-cyan-500/10",
     },
-    {
-      label: "Indirect Referrals",
-      value: indirect_referrals,
-      icon: Gift,
-      color: "text-pink-400",
-      bg: "bg-pink-500/10",
-    },
+    // Indirect Referrals removed
   ];
 
   return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-5">
       {stats.map((stat, index) => {
         const Icon = stat.icon;
         // First stat (Available Points) uses level color

@@ -11,8 +11,7 @@ type Settings = {
   contact_email: string;
   contact_phone: string;
   address: string;
-  currency: string;
-  timezone: string;
+  site_logo: string | null;
 };
 
 export default function GeneralSettings() {
@@ -22,8 +21,7 @@ export default function GeneralSettings() {
     contact_email: "",
     contact_phone: "",
     address: "",
-    currency: "₦",
-    timezone: "Africa/Lagos",
+    site_logo: null,
   });
   const [loading, setLoading] = useState(true);
 
@@ -36,7 +34,7 @@ export default function GeneralSettings() {
     try {
       const { data, error } = await supabase
         .from("company_settings")
-        .select("site_name, site_description, contact_email, contact_phone, address, currency, timezone")
+        .select("site_name, site_description, contact_email, contact_phone, address, site_logo")
         .eq("id", 1)
         .single();
 
@@ -48,8 +46,7 @@ export default function GeneralSettings() {
           contact_email: "",
           contact_phone: "",
           address: "",
-          currency: "₦",
-          timezone: "Africa/Lagos",
+          site_logo: null,
         });
         setLoading(false);
         return;
@@ -62,8 +59,7 @@ export default function GeneralSettings() {
           contact_email: data.contact_email || "",
           contact_phone: data.contact_phone || "",
           address: data.address || "",
-          currency: data.currency || "₦",
-          timezone: data.timezone || "Africa/Lagos",
+          site_logo: data.site_logo || null,
         });
       }
     } catch (error) {
@@ -79,7 +75,7 @@ export default function GeneralSettings() {
     setSettings((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSave = async () => {
+  const handleSave = async (): Promise<void> => {
     try {
       const updateData = {
         site_name: settings.site_name,
@@ -87,8 +83,7 @@ export default function GeneralSettings() {
         contact_email: settings.contact_email,
         contact_phone: settings.contact_phone,
         address: settings.address,
-        currency: settings.currency,
-        timezone: settings.timezone,
+        site_logo: settings.site_logo,
         updated_at: new Date().toISOString(),
       };
 
@@ -118,7 +113,7 @@ export default function GeneralSettings() {
   return (
     <SettingCard
       title="General Settings"
-      description="Configure your site name, contact information, and regional settings"
+      description="Configure your site name, contact information, and logo"
       onSave={handleSave}
       onRefresh={loadSettings}
     >
@@ -136,18 +131,18 @@ export default function GeneralSettings() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-400">Currency</label>
-            <select
-              name="currency"
-              value={settings.currency}
+            <label className="block text-sm font-medium text-slate-400">Site Logo URL</label>
+            <input
+              type="text"
+              name="site_logo"
+              value={settings.site_logo || ""}
               onChange={handleChange}
+              placeholder="https://your-bucket.supabase.co/logo.png"
               className="mt-1 w-full rounded-lg border border-slate-800 bg-slate-900/50 px-4 py-2.5 text-white focus:border-emerald-500 focus:outline-none"
-            >
-              <option value="₦">₦ (Naira)</option>
-              <option value="$">$ (Dollar)</option>
-              <option value="€">€ (Euro)</option>
-              <option value="£">£ (Pound)</option>
-            </select>
+            />
+            <p className="mt-1 text-xs text-slate-500">
+              Enter the public URL of your logo from Supabase Storage
+            </p>
           </div>
         </div>
 
@@ -195,27 +190,6 @@ export default function GeneralSettings() {
             onChange={handleChange}
             className="mt-1 w-full rounded-lg border border-slate-800 bg-slate-900/50 px-4 py-2.5 text-white focus:border-emerald-500 focus:outline-none"
           />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-slate-400">Timezone</label>
-          <select
-            name="timezone"
-            value={settings.timezone}
-            onChange={handleChange}
-            className="mt-1 w-full rounded-lg border border-slate-800 bg-slate-900/50 px-4 py-2.5 text-white focus:border-emerald-500 focus:outline-none"
-          >
-            <option value="Africa/Lagos">Africa/Lagos (UTC+1)</option>
-            <option value="Africa/Cairo">Africa/Cairo (UTC+2)</option>
-            <option value="Africa/Johannesburg">Africa/Johannesburg (UTC+2)</option>
-            <option value="America/New_York">America/New_York (UTC-5)</option>
-            <option value="America/Los_Angeles">America/Los_Angeles (UTC-8)</option>
-            <option value="Europe/London">Europe/London (UTC+0)</option>
-            <option value="Europe/Paris">Europe/Paris (UTC+1)</option>
-            <option value="Asia/Dubai">Asia/Dubai (UTC+4)</option>
-            <option value="Asia/Singapore">Asia/Singapore (UTC+8)</option>
-            <option value="Australia/Sydney">Australia/Sydney (UTC+11)</option>
-          </select>
         </div>
       </div>
     </SettingCard>

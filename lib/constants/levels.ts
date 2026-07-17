@@ -1,5 +1,5 @@
 // ============================================
-// MEMBERSHIP LEVELS CONFIGURATION
+// MEMBERSHIP LEVELS CONFIGURATION - DARK THEME OPTIMIZED
 // ============================================
 
 export interface MembershipLevel {
@@ -21,86 +21,86 @@ export const MEMBERSHIP_LEVELS: Record<number, MembershipLevel> = {
   1: {
     id: 1,
     name: 'Beginner',
-    color: '#22c55e',           // Green
-    bgColor: 'bg-emerald-500',
-    borderColor: 'border-emerald-500',
-    textColor: 'text-emerald-400',
-    gradient: 'from-emerald-500/20 to-emerald-600/10',
-    badgeBg: 'bg-emerald-500/20',
-    badgeText: 'text-emerald-400',
-    shadow: 'shadow-emerald-500/20',
-    lightBg: 'bg-emerald-50 dark:bg-emerald-950/30',
-    hoverBg: 'hover:bg-emerald-50 dark:hover:bg-emerald-950/50',
+    color: '#34d399',           // Emerald-400 (softer)
+    bgColor: 'bg-emerald-600',
+    borderColor: 'border-emerald-600',
+    textColor: 'text-emerald-300',
+    gradient: 'from-emerald-600/30 to-emerald-700/20',
+    badgeBg: 'bg-emerald-600/30',
+    badgeText: 'text-emerald-300',
+    shadow: 'shadow-emerald-600/20',
+    lightBg: 'bg-emerald-950/40',
+    hoverBg: 'hover:bg-emerald-950/60',
   },
   2: {
     id: 2,
     name: 'Bronze',
-    color: '#3b82f6',           // Blue
-    bgColor: 'bg-blue-500',
-    borderColor: 'border-blue-500',
-    textColor: 'text-blue-400',
-    gradient: 'from-blue-500/20 to-blue-600/10',
-    badgeBg: 'bg-blue-500/20',
-    badgeText: 'text-blue-400',
-    shadow: 'shadow-blue-500/20',
-    lightBg: 'bg-blue-50 dark:bg-blue-950/30',
-    hoverBg: 'hover:bg-blue-50 dark:hover:bg-blue-950/50',
+    color: '#60a5fa',           // Blue-400 (softer)
+    bgColor: 'bg-blue-600',
+    borderColor: 'border-blue-600',
+    textColor: 'text-blue-300',
+    gradient: 'from-blue-600/30 to-blue-700/20',
+    badgeBg: 'bg-blue-600/30',
+    badgeText: 'text-blue-300',
+    shadow: 'shadow-blue-600/20',
+    lightBg: 'bg-blue-950/40',
+    hoverBg: 'hover:bg-blue-950/60',
   },
   3: {
     id: 3,
     name: 'Silver',
-    color: '#8b5cf6',           // Purple
-    bgColor: 'bg-purple-500',
-    borderColor: 'border-purple-500',
-    textColor: 'text-purple-400',
-    gradient: 'from-purple-500/20 to-purple-600/10',
-    badgeBg: 'bg-purple-500/20',
-    badgeText: 'text-purple-400',
-    shadow: 'shadow-purple-500/20',
-    lightBg: 'bg-purple-50 dark:bg-purple-950/30',
-    hoverBg: 'hover:bg-purple-50 dark:hover:bg-purple-950/50',
+    color: '#a78bfa',           // Purple-400 (softer)
+    bgColor: 'bg-purple-600',
+    borderColor: 'border-purple-600',
+    textColor: 'text-purple-300',
+    gradient: 'from-purple-600/30 to-purple-700/20',
+    badgeBg: 'bg-purple-600/30',
+    badgeText: 'text-purple-300',
+    shadow: 'shadow-purple-600/20',
+    lightBg: 'bg-purple-950/40',
+    hoverBg: 'hover:bg-purple-950/60',
   },
   4: {
     id: 4,
     name: 'Gold',
-    color: '#eab308',           // Gold
-    bgColor: 'bg-yellow-500',
-    borderColor: 'border-yellow-500',
-    textColor: 'text-yellow-400',
-    gradient: 'from-yellow-500/20 to-yellow-600/10',
-    badgeBg: 'bg-yellow-500/20',
-    badgeText: 'text-yellow-400',
-    shadow: 'shadow-yellow-500/20',
-    lightBg: 'bg-yellow-50 dark:bg-yellow-950/30',
-    hoverBg: 'hover:bg-yellow-50 dark:hover:bg-yellow-950/50',
+    color: '#fcd34d',           // Yellow-300 (softer)
+    bgColor: 'bg-yellow-600',
+    borderColor: 'border-yellow-600',
+    textColor: 'text-yellow-300',
+    gradient: 'from-yellow-600/30 to-yellow-700/20',
+    badgeBg: 'bg-yellow-600/30',
+    badgeText: 'text-yellow-300',
+    shadow: 'shadow-yellow-600/20',
+    lightBg: 'bg-yellow-950/40',
+    hoverBg: 'hover:bg-yellow-950/60',
   },
   5: {
     id: 5,
     name: 'Platinum',
-    color: '#f97316',           // Orange
-    bgColor: 'bg-orange-500',
-    borderColor: 'border-orange-500',
-    textColor: 'text-orange-400',
-    gradient: 'from-orange-500/20 to-orange-600/10',
-    badgeBg: 'bg-orange-500/20',
-    badgeText: 'text-orange-400',
-    shadow: 'shadow-orange-500/20',
-    lightBg: 'bg-orange-50 dark:bg-orange-950/30',
-    hoverBg: 'hover:bg-orange-50 dark:hover:bg-orange-950/50',
+    color: '#fb923c',           // Orange-400 (softer)
+    bgColor: 'bg-orange-600',
+    borderColor: 'border-orange-600',
+    textColor: 'text-orange-300',
+    gradient: 'from-orange-600/30 to-orange-700/20',
+    badgeBg: 'bg-orange-600/30',
+    badgeText: 'text-orange-300',
+    shadow: 'shadow-orange-600/20',
+    lightBg: 'bg-orange-950/40',
+    hoverBg: 'hover:bg-orange-950/60',
   },
   6: {
     id: 6,
     name: 'Diamond',
-    color: '#06b6d4',           // Crystal Blue
-    bgColor: 'bg-cyan-500',
-    borderColor: 'border-cyan-500',
-    textColor: 'text-cyan-400',
-    gradient: 'from-cyan-500/20 to-cyan-600/10',
-    badgeBg: 'bg-cyan-500/20',
-    badgeText: 'text-cyan-400',
-    shadow: 'shadow-cyan-500/20',
-    lightBg: 'bg-cyan-50 dark:bg-cyan-950/30',
-    hoverBg: 'hover:bg-cyan-50 dark:hover:bg-cyan-950/50',
+    color: '#22d3ee',           // Cyan-400 (softer)
+    bgColor: 'bg-cyan-600',
+    borderColor: 'border-cyan-600',
+    textColor: 'text-cyan-300',
+    gradient: 'from-cyan-600/30 to-cyan-700/20',
+    badgeBg: 'bg-cyan-600/30',
+    badgeText: 'text-cyan-300',
+    shadow: 'shadow-cyan-600/20',
+    lightBg: 'bg-cyan-950/40',
+    hoverBg: 'hover:bg-cyan-950/60',
   },
 };
 
@@ -116,7 +116,7 @@ export const getLevelName = (id: number): string => {
 
 // Helper function to get level color by ID
 export const getLevelColor = (id: number): string => {
-  return MEMBERSHIP_LEVELS[id]?.color || '#22c55e';
+  return MEMBERSHIP_LEVELS[id]?.color || '#34d399';
 };
 
 // Helper function to get level badge classes

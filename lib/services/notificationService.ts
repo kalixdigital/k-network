@@ -1,6 +1,8 @@
+// lib/services/notificationService.ts
+
 import { supabase } from "@/lib/supabase/client";
 
-type NotificationType = 'referral' | 'purchase' | 'points' | 'withdrawal' | 'system' | 'membership';
+export type NotificationType = 'referral' | 'purchase' | 'points' | 'withdrawal' | 'system' | 'membership' | 'activation';
 
 interface CreateNotificationParams {
   userId: string;
@@ -18,27 +20,66 @@ export async function createNotification({
   metadata = {},
 }: CreateNotificationParams) {
   try {
+    console.log("📝 Creating notification:", { userId, title, type });
+
+    // Validate required fields
+    if (!userId) {
+      console.error("❌ No userId provided for notification");
+      return null;
+    }
+
+    if (!title) {
+      console.error("❌ No title provided for notification");
+      return null;
+    }
+
+    if (!description) {
+      console.error("❌ No description provided for notification");
+      return null;
+    }
+
+    // Ensure metadata is an object
+    const safeMetadata = metadata || {};
+
     const { data, error } = await supabase
       .from("notifications")
       .insert({
         user_id: userId,
-        title,
-        description,
-        type,
+        title: title,
+        description: description,
+        type: type,
         is_read: false,
-        metadata,
+        metadata: safeMetadata,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       })
       .select()
       .single();
 
     if (error) {
-      console.error("Error creating notification:", error);
+      console.error("❌ Error creating notification:", {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+        // ✅ Removed: status: error.status,
+        userId,
+        title,
+        type,
+      });
       return null;
     }
 
+    console.log("✅ Notification created:", data);
     return data;
-  } catch (error) {
-    console.error("Error creating notification:", error);
+  } catch (error: any) {
+    console.error("❌ Unexpected error creating notification:", {
+      message: error?.message,
+      stack: error?.stack,
+      userId,
+      title,
+      type,
+    });
     return null;
   }
 }
@@ -61,19 +102,29 @@ export async function createBulkNotifications(
 // Get all admin users
 export async function getAdminUsers() {
   try {
+    console.log("🔍 Fetching admin users...");
     const { data, error } = await supabase
       .from("profiles")
       .select("id, full_name, email")
       .eq("role", "admin");
 
     if (error) {
-      console.error("Error fetching admin users:", error);
+      console.error("❌ Error fetching admin users:", {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+      });
       return [];
     }
 
+    console.log(`✅ Found ${data?.length || 0} admin users`);
     return data || [];
-  } catch (error) {
-    console.error("Error fetching admin users:", error);
+  } catch (error: any) {
+    console.error("❌ Unexpected error fetching admin users:", {
+      message: error?.message,
+      stack: error?.stack,
+    });
     return [];
   }
 }
@@ -176,9 +227,9 @@ export const NotificationTemplates = {
     type: "purchase" as NotificationType,
   }),
 
-  orderCompleted: (orderNumber: string) => ({
+  orderCompleted: (orderNumber: string, points: number) => ({
     title: "Order Completed 🎉",
-    description: `Your order #${orderNumber} has been completed. Thank you for your purchase!`,
+    description: `Your order #${orderNumber} has been completed. You earned ${points} points.`,
     type: "purchase" as NotificationType,
   }),
 
@@ -222,6 +273,12 @@ export const NotificationTemplates = {
     title: "Withdrawal Completed 💰",
     description: `Your withdrawal of ₦${amount.toLocaleString()} has been completed.`,
     type: "withdrawal" as NotificationType,
+  }),
+
+  accountActivated: (points: number) => ({
+    title: "Account Activated! 🎉",
+    description: `Your account has been activated! You earned ${points} product points.`,
+    type: "activation" as NotificationType,
   }),
 
   // ========== ADMIN NOTIFICATIONS ==========

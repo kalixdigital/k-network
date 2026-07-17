@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronRight, User, Users, Award, Mail, Phone } from "lucide-react";
+import { ChevronDown, ChevronRight, User, Users, Award, Mail, Phone, ChevronLeft } from "lucide-react";
 import { getLevel, getLevelName } from "@/lib/constants/levels";
 
 type GenealogyNode = {
@@ -58,6 +58,7 @@ const getNodeBg = (level: number, isCurrentUser: boolean): string => {
   return "bg-slate-800/50 border-slate-700";
 };
 
+// Mobile-optimized TreeNode with improved spacing
 const TreeNode = ({ 
   node, 
   level = 0, 
@@ -78,69 +79,72 @@ const TreeNode = ({
   const nodeBg = getNodeBg(node.membership_level, isCurrentUser);
 
   return (
-    <div className="relative">
-      {/* Vertical line for tree structure */}
+    <div className="relative mb-5 sm:mb-6">
+      {/* Vertical line for tree structure - hidden on mobile */}
       {level > 0 && (
-        <div className="absolute left-4 top-0 h-full w-px bg-slate-700/50" />
+        <div className="absolute left-3 top-0 h-full w-px bg-slate-700/50 hidden sm:block" />
       )}
 
-      <div className="relative flex items-start gap-3">
-        {/* Horizontal connector line */}
+      <div className="relative flex items-start gap-2 sm:gap-3">
+        {/* Horizontal connector line - hidden on mobile */}
         {level > 0 && (
-          <div className="absolute left-4 top-6 h-px w-4 bg-slate-700/50" />
+          <div className="absolute left-3 top-6 h-px w-3 sm:w-4 bg-slate-700/50 hidden sm:block" />
         )}
 
-        {/* Node Card */}
-        <div className={`relative ${level > 0 ? 'ml-8' : ''}`}>
+        {/* Node Card - Mobile optimized with more indentation */}
+        <div className={`relative w-full ${level > 0 ? 'ml-6 sm:ml-10' : ''}`}>
           <div
-            className={`group rounded-xl border transition-all cursor-pointer ${nodeBg} shadow-lg backdrop-blur`}
+            className={`group rounded-xl border transition-all cursor-pointer ${nodeBg} shadow-lg backdrop-blur hover:scale-[1.02] active:scale-[0.98]`}
             onClick={() => onSelectUser(node.id)}
           >
-            <div className="flex items-center gap-3 p-4">
-              {/* Avatar */}
+            {/* Mobile-optimized layout with taller cards */}
+            <div className="flex items-center gap-3 sm:gap-4 py-4 px-4 sm:py-5 sm:px-5">
+              {/* Avatar - Smaller on mobile */}
               <div className="flex-shrink-0">
-                <div className={`flex h-10 w-10 items-center justify-center rounded-full ${
+                <div className={`flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-full ${
                   isCurrentUser 
                     ? `${levelData.bgColor} text-white` 
                     : 'bg-slate-700/50 text-slate-300'
-                } font-bold text-sm`}>
+                } font-bold text-xs sm:text-sm`}>
                   {node.full_name?.charAt(0) || "U"}
                 </div>
               </div>
 
-              {/* Info */}
+              {/* Info - Mobile optimized - REMOVED points and referrals */}
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className={`font-medium truncate ${isCurrentUser ? levelData.textColor : 'text-white'}`}>
+                <div className="flex flex-wrap items-center gap-2 mb-2">
+                  <p className={`font-medium text-sm sm:text-base truncate ${isCurrentUser ? levelData.textColor : 'text-white'}`}>
                     {node.full_name}
                     {isCurrentUser && " (You)"}
                   </p>
-                  <span className={`text-xs ${levelData.textColor}`}>
+                  <span className={`text-[10px] sm:text-xs ${levelData.textColor} whitespace-nowrap`}>
                     {levelIcon} {levelName}
                   </span>
                 </div>
-                <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
-                  <span className="font-mono">{node.id_number}</span>
-                  <span>•</span>
-                  <span>{node.direct_referrals} referrals</span>
-                  <span>•</span>
-                  <span>{node.points} pts</span>
-                  {node.is_active ? (
-                    <span className="text-emerald-400">● Active</span>
-                  ) : (
-                    <span className="text-yellow-400">○ Pending</span>
-                  )}
+                
+                {/* Info row - Clean and minimal */}
+                <div className="flex flex-wrap items-center gap-3 text-[11px] sm:text-xs text-slate-400 mt-1">
+                  <span className="font-mono truncate max-w-[60px] sm:max-w-none">{node.id_number}</span>
+                  <span className="hidden xs:inline">•</span>
+                  <span className="flex items-center gap-0.5">
+                    <span className={`h-1.5 w-1.5 rounded-full ${
+                      node.is_active ? 'bg-emerald-400' : 'bg-yellow-400'
+                    }`} />
+                    <span className="hidden xs:inline">
+                      {node.is_active ? 'Active' : 'Pending'}
+                    </span>
+                  </span>
                 </div>
               </div>
 
-              {/* Expand/Collapse */}
+              {/* Expand/Collapse - Touch-friendly */}
               {hasChildren && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     setIsExpanded(!isExpanded);
                   }}
-                  className="flex-shrink-0 rounded-lg p-1 hover:bg-slate-800 transition"
+                  className="flex-shrink-0 rounded-lg p-1.5 sm:p-1 hover:bg-slate-800 transition touch-manipulation"
                 >
                   {isExpanded ? (
                     <ChevronDown className="h-4 w-4 text-slate-400" />
@@ -152,9 +156,11 @@ const TreeNode = ({
             </div>
           </div>
 
-          {/* Children */}
+          {/* Children - Mobile optimized with more spacing */}
           {hasChildren && isExpanded && (
-            <div className="relative mt-2 pl-4">
+            <div className="relative mt-4 sm:mt-5 pl-4 sm:pl-6">
+              {/* Vertical line connecting children - taller and cleaner */}
+              <div className="absolute left-2 top-0 h-[calc(100%-18px)] w-px bg-slate-700/40 sm:left-5" />
               {node.children!.map((child, index) => (
                 <TreeNode
                   key={child.id}
@@ -173,12 +179,14 @@ const TreeNode = ({
 };
 
 export default function GenealogyTree({ tree, loading, onSelectUser }: GenealogyTreeProps) {
+  const [showMobileInfo, setShowMobileInfo] = useState(false);
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
+      <div className="flex items-center justify-center py-8 sm:py-12">
         <div className="text-center">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-400 border-t-transparent mx-auto" />
-          <p className="text-slate-400 mt-4">Loading genealogy tree...</p>
+          <p className="text-slate-400 mt-3 text-sm sm:text-base">Loading genealogy tree...</p>
         </div>
       </div>
     );
@@ -186,41 +194,67 @@ export default function GenealogyTree({ tree, loading, onSelectUser }: Genealogy
 
   if (!tree) {
     return (
-      <div className="text-center py-12">
-        <Users className="h-12 w-12 text-slate-600 mx-auto" />
-        <p className="mt-4 text-slate-400">No genealogy data available</p>
-        <p className="text-sm text-slate-500">Start referring people to build your tree</p>
+      <div className="text-center py-8 sm:py-12 px-4">
+        <Users className="h-10 w-10 sm:h-12 sm:w-12 text-slate-600 mx-auto" />
+        <p className="mt-3 text-slate-400 text-sm sm:text-base">No genealogy data available</p>
+        <p className="text-xs sm:text-sm text-slate-500">Start referring people to build your tree</p>
       </div>
     );
   }
 
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-xl backdrop-blur">
-      <div className="flex items-center justify-between mb-6">
+    <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-3 sm:p-6 shadow-xl backdrop-blur">
+      {/* Header - Mobile responsive */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4 mb-4 sm:mb-6">
         <div>
-          <h2 className="text-lg font-semibold text-white">Genealogy Tree</h2>
-          <p className="text-sm text-slate-400">Your referral network structure</p>
+          <h2 className="text-base sm:text-lg font-semibold text-white flex items-center gap-2">
+            <Users className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-400" />
+            Genealogy Tree
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-400">Your referral network structure</p>
         </div>
-        <div className="flex items-center gap-2 text-xs text-slate-400">
+        
+        {/* Legend - Mobile friendly */}
+        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
           <span className="flex items-center gap-1">
             <span className="h-2 w-2 rounded-full bg-emerald-500" />
-            You
+            <span className="text-[10px] sm:text-xs">You</span>
           </span>
           <span className="flex items-center gap-1">
             <span className="h-2 w-2 rounded-full bg-slate-600" />
-            Referrals
+            <span className="text-[10px] sm:text-xs">Referrals</span>
           </span>
+          <button
+            onClick={() => setShowMobileInfo(!showMobileInfo)}
+            className="lg:hidden text-emerald-400 hover:text-emerald-300 text-[10px] sm:text-xs underline"
+          >
+            {showMobileInfo ? 'Hide info' : 'Show info'}
+          </button>
         </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <div className="min-w-[300px]">
+      {/* Mobile info panel */}
+      {showMobileInfo && (
+        <div className="mb-3 sm:hidden rounded-lg bg-slate-800/30 p-3 text-center">
+          <p className="text-xs text-slate-400">
+            💡 Tap any member to view their details and earnings
+          </p>
+          <p className="text-xs text-slate-500 mt-1">
+            Tap the arrow to expand/collapse branches
+          </p>
+        </div>
+      )}
+
+      {/* Tree - Mobile optimized with horizontal scroll on very small screens */}
+      <div className="overflow-x-auto pb-2">
+        <div className="min-w-[280px] sm:min-w-[400px]">
           <TreeNode node={tree} onSelectUser={onSelectUser} />
         </div>
       </div>
 
-      <div className="mt-4 rounded-lg bg-slate-800/30 p-3 text-center">
-        <p className="text-xs text-slate-400">
+      {/* Footer - Hide on very small screens */}
+      <div className="mt-3 sm:mt-4 rounded-lg bg-slate-800/30 p-2 sm:p-3 text-center hidden xs:block">
+        <p className="text-[10px] sm:text-xs text-slate-400">
           💡 Click on any member to view their details and earnings
         </p>
       </div>

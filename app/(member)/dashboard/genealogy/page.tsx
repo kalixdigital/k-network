@@ -63,129 +63,54 @@ export default function GenealogyPage() {
         error: userError,
       } = await supabase.auth.getUser();
 
-      if (userError) throw userError;
+      if (userError) {
+        console.error("Auth error:", userError);
+        throw userError;
+      }
+      
       if (!user) {
         router.push("/login");
         return;
       }
 
-      // Get user profile
-      const { data: userProfile, error: profileError } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .single();
+      // Use the RPC function to get the user's profile (bypasses RLS)
+      const { data: userProfileData, error: profileError } = await supabase
+        .rpc('get_my_profile');
 
       if (profileError) {
         console.error("Profile fetch error:", profileError);
         throw profileError;
       }
 
+      if (!userProfileData) {
+        console.error("No profile data found");
+        showToast.error("Profile not found");
+        return;
+      }
+
+      const userProfile = userProfileData;
       setUserLevel(userProfile.membership_level || 1);
 
       // Build genealogy tree
       const treeData = await buildGenealogyTree(user.id, userProfile);
       setTree(treeData);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error loading genealogy:", error);
-      showToast.error("Failed to load genealogy");
+      showToast.error(error?.message || "Failed to load genealogy");
     } finally {
       setLoading(false);
     }
   };
 
   const buildGenealogyTree = async (userId: string, userProfile: any): Promise<GenealogyNode> => {
-    // Get direct referrals - using the RPC function for proper UUID to TEXT conversion
+    // Get direct referrals - using the RPC function
     const { data: referrals, error } = await supabase
       .rpc('get_user_direct_referrals', { p_user_id: userId });
 
     if (error) {
       console.error("Error fetching referrals:", error);
-      // Fallback to direct query
-      const { data: fallbackReferrals, error: fallbackError } = await supabase
-        .from("profiles")
-        .select(`
-          id,
-          full_name,
-          id_number,
-          email,
-          phone,
-          membership_level,
-          points,
-          direct_referrals,
-          is_active,
-          created_at
-        `)
-        .eq("referred_by", userId)
-        .order("created_at", { ascending: true });
-
-      if (fallbackError) {
-        console.error("Fallback referral fetch error:", fallbackError);
-        return {
-          id: userProfile.id,
-          full_name: userProfile.full_name,
-          id_number: userProfile.id_number,
-          email: userProfile.email,
-          phone: userProfile.phone,
-          membership_level: userProfile.membership_level,
-          points: userProfile.points,
-          direct_referrals: userProfile.direct_referrals,
-          is_active: userProfile.is_active,
-          joined_at: userProfile.created_at,
-          children: [],
-        };
-      }
-
-      // Build children recursively (limited to 2 levels deep for performance)
-      const children = await Promise.all(
-        (fallbackReferrals || []).map(async (referral: any) => {
-          // Get their referrals (level 2)
-          const { data: subReferrals } = await supabase
-            .from("profiles")
-            .select(`
-              id,
-              full_name,
-              id_number,
-              email,
-              phone,
-              membership_level,
-              points,
-              direct_referrals,
-              is_active,
-              created_at
-            `)
-            .eq("referred_by", referral.id)
-            .limit(10); // Limit to avoid huge trees
-
-          return {
-            id: referral.id,
-            full_name: referral.full_name,
-            id_number: referral.id_number,
-            email: referral.email,
-            phone: referral.phone,
-            membership_level: referral.membership_level,
-            points: referral.points,
-            direct_referrals: referral.direct_referrals,
-            is_active: referral.is_active,
-            joined_at: referral.created_at,
-            children: (subReferrals || []).map((sub: any) => ({
-              id: sub.id,
-              full_name: sub.full_name,
-              id_number: sub.id_number,
-              email: sub.email,
-              phone: sub.phone,
-              membership_level: sub.membership_level,
-              points: sub.points,
-              direct_referrals: sub.direct_referrals,
-              is_active: sub.is_active,
-              joined_at: sub.created_at,
-              children: [],
-            })),
-          };
-        })
-      );
-
+      // Fallback to empty tree
       return {
         id: userProfile.id,
         full_name: userProfile.full_name,
@@ -197,7 +122,7 @@ export default function GenealogyPage() {
         direct_referrals: userProfile.direct_referrals,
         is_active: userProfile.is_active,
         joined_at: userProfile.created_at,
-        children: children,
+        children: [],
       };
     }
 
@@ -206,43 +131,29 @@ export default function GenealogyPage() {
       (referrals || []).map(async (referral: any) => {
         // Get their referrals (level 2)
         const { data: subReferrals } = await supabase
-          .from("profiles")
-          .select(`
-            id,
-            full_name,
-            id_number,
-            email,
-            phone,
-            membership_level,
-            points,
-            direct_referrals,
-            is_active,
-            created_at
-          `)
-          .eq("referred_by", referral.id)
-          .limit(10); // Limit to avoid huge trees
+          .rpc('get_user_direct_referrals', { p_user_id: referral.id });
 
         return {
           id: referral.id,
           full_name: referral.full_name,
           id_number: referral.id_number,
           email: referral.email,
-          phone: referral.phone,
+          phone: referral.phone || '',
           membership_level: referral.membership_level,
-          points: referral.points,
-          direct_referrals: referral.direct_referrals,
-          is_active: referral.is_active,
+          points: referral.points || 0,
+          direct_referrals: referral.direct_referrals || 0,
+          is_active: referral.is_active || false,
           joined_at: referral.created_at,
-          children: (subReferrals || []).map((sub: any) => ({
+          children: (subReferrals || []).slice(0, 10).map((sub: any) => ({
             id: sub.id,
             full_name: sub.full_name,
             id_number: sub.id_number,
             email: sub.email,
-            phone: sub.phone,
+            phone: sub.phone || '',
             membership_level: sub.membership_level,
-            points: sub.points,
-            direct_referrals: sub.direct_referrals,
-            is_active: sub.is_active,
+            points: sub.points || 0,
+            direct_referrals: sub.direct_referrals || 0,
+            is_active: sub.is_active || false,
             joined_at: sub.created_at,
             children: [],
           })),
@@ -267,27 +178,54 @@ export default function GenealogyPage() {
 
   const handleSelectUser = async (userId: string) => {
     try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", userId)
-        .single();
-
-      if (error) {
-        console.error("Member details fetch error:", error);
-        throw error;
+      if (!userId) {
+        console.error("No user ID provided");
+        showToast.error("Invalid user ID");
+        return;
       }
 
+      console.log("Loading member details for:", userId);
+
+      const { data, error } = await supabase
+        .rpc('get_member_details', { p_user_id: userId });
+
+      if (error) {
+        console.error("Member details fetch error:", {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
+        showToast.error(error.message || "Failed to fetch member details");
+        return;
+      }
+
+      if (!data) {
+        console.error("No member found with ID:", userId);
+        showToast.error("Member not found");
+        return;
+      }
+
+      if (data.error) {
+        showToast.error(data.error);
+        return;
+      }
+
+      console.log("Member loaded:", data.full_name);
       setSelectedMember(data as MemberDetails);
       setIsModalOpen(true);
-    } catch (error) {
-      console.error("Error loading member details:", error);
-      showToast.error("Failed to load member details");
+
+    } catch (error: any) {
+      console.error("Error loading member details:", {
+        message: error?.message,
+        stack: error?.stack,
+        name: error?.name
+      });
+      showToast.error(error?.message || "Failed to load member details");
     }
   };
 
   const levelData = getLevel(userLevel);
-  const levelColor = levelData.textColor;
 
   return (
     <div className="space-y-6 pb-20 md:pb-0">

@@ -14,6 +14,9 @@ import {
   CheckCircle,
   XCircle,
   RefreshCw,
+  UserCheck,
+  UserX,
+  Shield,
 } from "lucide-react";
 import StatusBadge from "@/components/admin/StatusBadge";
 
@@ -33,6 +36,7 @@ type Member = {
   direct_referrals: number;
   indirect_referrals: number;
   is_verified: boolean;
+  is_active: boolean;
   role: string;
   referred_by: string | null;
   created_at: string;
@@ -66,7 +70,7 @@ export default function MemberDetails({ id }: Props) {
   const loadMemberDetails = async () => {
     setLoading(true);
     try {
-      // Load member
+      // Load member - include is_active
       const { data: memberData, error: memberError } = await supabase
         .from("profiles")
         .select("*")
@@ -99,7 +103,6 @@ export default function MemberDetails({ id }: Props) {
           .limit(20);
 
         if (activityError) {
-          // If table doesn't exist, just set empty activities
           if (activityError.message?.includes('does not exist')) {
             setHasActivitiesTable(false);
             setActivities([]);
@@ -129,20 +132,71 @@ export default function MemberDetails({ id }: Props) {
 
     setUpdating(true);
     try {
+      // Toggle both is_verified and is_active together
+      const newStatus = !member.is_verified;
+      
       const { error } = await supabase
         .from("profiles")
         .update({
-          is_verified: !member.is_verified,
+          is_verified: newStatus,
+          is_active: newStatus, // Also update is_active to match
           updated_at: new Date().toISOString(),
         })
         .eq("id", id);
 
       if (error) throw error;
 
-      showToast.success(`Member ${member.is_verified ? 'unverified' : 'verified'} successfully`);
-      loadMemberDetails();
+      // Also create an activity log
+      try {
+        await supabase
+          .from("activities")
+          .insert({
+            user_id: id,
+            title: newStatus ? "✅ Member Verified" : "⛔ Member Unverified",
+            description: `Member ${member.full_name} has been ${newStatus ? 'verified' : 'unverified'} by admin`,
+            type: "admin",
+            created_at: new Date().toISOString(),
+          });
+      } catch (activityError) {
+        // Activity table might not exist, ignore error
+        console.warn("Could not log activity:", activityError);
+      }
+
+      showToast.success(`Member ${newStatus ? 'verified' : 'unverified'} successfully`);
+      
+      // Reload member data
+      await loadMemberDetails();
     } catch (error) {
       console.error("Error toggling status:", error);
+      showToast.error("Failed to update member status");
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const toggleMemberActivation = async () => {
+    if (!member) return;
+
+    setUpdating(true);
+    try {
+      const newStatus = !member.is_active;
+      
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          is_active: newStatus,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id);
+
+      if (error) throw error;
+
+      showToast.success(`Member ${newStatus ? 'activated' : 'deactivated'} successfully`);
+      
+      // Reload member data
+      await loadMemberDetails();
+    } catch (error) {
+      console.error("Error toggling activation:", error);
       showToast.error("Failed to update member status");
     } finally {
       setUpdating(false);
@@ -198,8 +252,17 @@ export default function MemberDetails({ id }: Props) {
             </h1>
             <p className="text-sm text-slate-400">{member.email}</p>
             <div className="mt-2 flex flex-wrap items-center gap-3">
-              <StatusBadge status={member.is_verified ? "active" : "inactive"} type="member" />
-              <StatusBadge status={member.role || "user"} type="member" />
+              <StatusBadge status={member.is_verified ? "verified" : "pending"} type="member" />
+              <StatusBadge status={member.is_active ? "active" : "inactive"} type="member" />
+              {/* Role badge - use a custom badge instead of StatusBadge */}
+              <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium ${
+                member.role === 'admin' 
+                  ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
+                  : 'bg-slate-500/20 text-slate-400 border border-slate-500/30'
+              }`}>
+                <Shield className="h-3 w-3" />
+                {member.role || 'user'}
+              </span>
               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-3 py-1 text-sm font-semibold text-emerald-400">
                 <Award className="h-3 w-3" />
                 Level {member.membership_level}
@@ -209,6 +272,7 @@ export default function MemberDetails({ id }: Props) {
         </div>
 
         <div className="flex flex-wrap gap-3">
+          {/* Verify/Unverify Button */}
           <button
             onClick={toggleMemberStatus}
             disabled={updating}
@@ -220,13 +284,36 @@ export default function MemberDetails({ id }: Props) {
           >
             {member.is_verified ? (
               <>
-                <XCircle className="h-4 w-4" />
+                <UserX className="h-4 w-4" />
                 Unverify
               </>
             ) : (
               <>
-                <CheckCircle className="h-4 w-4" />
+                <UserCheck className="h-4 w-4" />
                 Verify
+              </>
+            )}
+          </button>
+
+          {/* Activate/Deactivate Button */}
+          <button
+            onClick={toggleMemberActivation}
+            disabled={updating}
+            className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 font-medium text-white transition disabled:opacity-50 ${
+              member.is_active
+                ? "bg-red-600 hover:bg-red-700"
+                : "bg-blue-600 hover:bg-blue-700"
+            }`}
+          >
+            {member.is_active ? (
+              <>
+                <XCircle className="h-4 w-4" />
+                Deactivate
+              </>
+            ) : (
+              <>
+                <CheckCircle className="h-4 w-4" />
+                Activate
               </>
             )}
           </button>
@@ -290,6 +377,13 @@ export default function MemberDetails({ id }: Props) {
               <div>
                 <p className="text-sm text-slate-400">Referred By</p>
                 <p className="text-white">{member.referred_by || "N/A"}</p>
+              </div>
+              <div>
+                <p className="text-sm text-slate-400">Status</p>
+                <div className="flex gap-2">
+                  <StatusBadge status={member.is_verified ? "verified" : "pending"} type="member" />
+                  <StatusBadge status={member.is_active ? "active" : "inactive"} type="member" />
+                </div>
               </div>
             </div>
           </div>

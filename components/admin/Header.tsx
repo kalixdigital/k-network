@@ -1,6 +1,8 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { showToast } from "@/components/ui/toast";
@@ -16,6 +18,35 @@ type HeaderProps = {
 
 export default function Header({ profile, onMenuToggle, isMobileMenuOpen }: HeaderProps) {
   const router = useRouter();
+  const [siteLogo, setSiteLogo] = useState<string | null>(null);
+  const [siteName, setSiteName] = useState("K-NETWORK");
+
+  // Load company settings for logo
+  useEffect(() => {
+    async function loadCompanySettings() {
+      try {
+        const { data, error } = await supabase
+          .from("company_settings")
+          .select("site_logo, site_name")
+          .eq("id", 1)
+          .single();
+
+        if (error) {
+          console.error("Error loading company settings:", error);
+          return;
+        }
+
+        if (data) {
+          setSiteLogo(data.site_logo || null);
+          if (data.site_name) setSiteName(data.site_name);
+        }
+      } catch (error) {
+        console.error("Error loading company settings:", error);
+      }
+    }
+
+    loadCompanySettings();
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -37,6 +68,30 @@ export default function Header({ profile, onMenuToggle, isMobileMenuOpen }: Head
   const levelColor = levelData.textColor;
   const levelBg = levelData.bgColor;
 
+  // Render logo
+  const renderLogo = () => {
+    if (siteLogo) {
+      return (
+        <div className="relative h-8 w-8 flex-shrink-0">
+          <Image
+            src={siteLogo}
+            alt={siteName}
+            fill
+            className="object-contain"
+            priority
+          />
+        </div>
+      );
+    }
+
+    // Fallback to the "K" letter
+    return (
+      <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${levelBg} font-bold text-white`}>
+        K
+      </div>
+    );
+  };
+
   return (
     <header className="sticky top-0 z-50 border-b border-slate-800 bg-slate-900/95 px-4 py-3 backdrop-blur-xl md:px-6 md:py-4">
       <div className="mx-auto flex max-w-7xl items-center justify-between">
@@ -49,11 +104,9 @@ export default function Header({ profile, onMenuToggle, isMobileMenuOpen }: Head
           </button>
 
           <Link href="/admin/dashboard" className="flex items-center gap-2">
-            <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${levelBg} font-bold text-white`}>
-              K
-            </div>
+            {renderLogo()}
             <div>
-              <h1 className="text-lg font-bold text-white">K-NETWORK</h1>
+              <h1 className="text-lg font-bold text-white">{siteName}</h1>
               <p className={`text-xs ${levelColor}`}>Admin Panel</p>
             </div>
           </Link>

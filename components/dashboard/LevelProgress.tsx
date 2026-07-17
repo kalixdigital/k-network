@@ -36,28 +36,26 @@ const getLevelBg = (level: number): string => {
   }
 };
 
-// Get progress bar color based on percentage
-const getProgressBarColor = (percent: number, levelColor: string) => {
-  // Use the level's color with different intensities based on progress
-  if (percent < 39) {
-    return {
-      gradient: `from-${levelColor}-600 to-${levelColor}-500`,
-      glow: `shadow-${levelColor}-500/20`,
-      text: `text-${levelColor}-400`,
-    };
-  } else if (percent < 69) {
-    return {
-      gradient: `from-${levelColor}-500 to-${levelColor}-400`,
-      glow: `shadow-${levelColor}-500/30`,
-      text: `text-${levelColor}-400`,
-    };
-  } else {
-    return {
-      gradient: `from-${levelColor}-500 to-${levelColor}-400`,
-      glow: `shadow-${levelColor}-400/40`,
-      text: `text-${levelColor}-400`,
-    };
-  }
+// Get progress bar color based on percentage - Using direct color mapping
+const getProgressBarStyles = (percent: number, level: number) => {
+  // Map level to actual color classes
+  const colorMap: Record<number, { from: string; to: string; glow: string; text: string }> = {
+    1: { from: 'from-emerald-600', to: 'to-emerald-400', glow: 'shadow-emerald-500/20', text: 'text-emerald-400' },
+    2: { from: 'from-blue-600', to: 'to-blue-400', glow: 'shadow-blue-500/20', text: 'text-blue-400' },
+    3: { from: 'from-purple-600', to: 'to-purple-400', glow: 'shadow-purple-500/20', text: 'text-purple-400' },
+    4: { from: 'from-yellow-600', to: 'to-yellow-400', glow: 'shadow-yellow-500/20', text: 'text-yellow-400' },
+    5: { from: 'from-orange-600', to: 'to-orange-400', glow: 'shadow-orange-500/20', text: 'text-orange-400' },
+    6: { from: 'from-cyan-600', to: 'to-cyan-400', glow: 'shadow-cyan-500/20', text: 'text-cyan-400' },
+  };
+
+  // Default to emerald if level not found
+  const colors = colorMap[level] || colorMap[1];
+
+  return {
+    gradient: `${colors.from} ${colors.to}`,
+    glow: colors.glow,
+    text: colors.text,
+  };
 };
 
 export default function LevelProgress({ level, currentPoints }: Props) {
@@ -104,38 +102,26 @@ export default function LevelProgress({ level, currentPoints }: Props) {
   const currentLevelData = levels.find((l) => l.id === level);
   const nextLevelData = levels.find((l) => l.id === level + 1);
 
-  if (!currentLevelData || !nextLevelData) {
-    // Fallback if database levels not found
-    const currentLevel = getLevel(level);
-    const nextLevel = getLevel(level + 1);
-    
-    if (!currentLevel || !nextLevel) {
-      return null;
-    }
+  // Get the level colors from the reusable system
+  const nextLevel = getLevel(level + 1);
+  const currentLevel = getLevel(level);
+  const bgColor = getLevelBg(level);
 
-    const percent = Math.min((currentPoints / 100) * 100, 100);
-    const bgColor = getLevelBg(level);
-    const levelColor = nextLevel.bgColor.replace('bg-', '').replace('-500', '');
-    const progressColor = getProgressBarColor(percent, levelColor);
-
+  // If no next level, we're at max level
+  if (!nextLevel || !nextLevelData) {
     return (
       <div className={`rounded-2xl border ${bgColor} p-4 shadow-xl backdrop-blur md:p-6`}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${nextLevel.bgColor}`} />
-            <span className={`text-lg font-bold md:text-xl ${nextLevel.textColor}`}>
-              {nextLevel.name}
-            </span>
-          </div>
-          <span className={`text-lg font-bold ${progressColor.text}`}>
-            {Math.round(percent)}%
+        <div className="flex items-center gap-3">
+          <div className={`w-2 h-2 rounded-full ${currentLevel.bgColor}`} />
+          <span className={`text-lg font-bold md:text-xl ${currentLevel.textColor}`}>
+            Maximum Level Reached! 🏆
           </span>
         </div>
         <div className="mt-3">
           <div className="h-4 w-full overflow-hidden rounded-full bg-slate-800 shadow-inner">
             <div
-              className={`h-full rounded-full bg-gradient-to-r ${progressColor.gradient} transition-all duration-1000 shadow-lg ${progressColor.glow}`}
-              style={{ width: `${percent}%` }}
+              className={`h-full rounded-full bg-gradient-to-r from-${currentLevel.bgColor.replace('bg-', '')} to-${currentLevel.bgColor.replace('bg-', '')} transition-all duration-1000 shadow-lg shadow-${currentLevel.bgColor.replace('bg-', '')}/20`}
+              style={{ width: '100%' }}
             />
           </div>
         </div>
@@ -144,25 +130,20 @@ export default function LevelProgress({ level, currentPoints }: Props) {
             Current: {currentPoints} pts
           </span>
           <span className="text-xs text-slate-500">
-            Target: {nextLevelData?.min_monthly_points || 100} pts
+            👑 Max Level
           </span>
         </div>
       </div>
     );
   }
 
+  // ✅ Now nextLevelData is guaranteed to exist
   const percent = Math.min(
     (currentPoints / nextLevelData.min_monthly_points) * 100,
     100
   );
   
-  // Get the next level's color from reusable system
-  const nextLevel = getLevel(level + 1);
-  const bgColor = getLevelBg(level);
-  
-  // Extract the color name from the bgColor class (e.g., "emerald" from "bg-emerald-500")
-  const levelColor = nextLevel.bgColor.replace('bg-', '').replace('-500', '');
-  const progressColor = getProgressBarColor(percent, levelColor);
+  const progressColor = getProgressBarStyles(percent, level + 1);
 
   return (
     <div className={`rounded-2xl border ${bgColor} p-4 shadow-xl backdrop-blur md:p-6`}>
