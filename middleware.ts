@@ -26,16 +26,34 @@ export async function middleware(request: NextRequest) {
   // Get the user
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   
-  // Public routes that don't require authentication
+  // ✅ Add all public routes here
   const publicRoutes = [
     '/', 
     '/login', 
     '/register', 
     '/forgot-password',
-    '/reset-password',  // Add this line
+    '/reset-password',
+    '/about',           // ✅ Add about page
+    '/contact',         // ✅ Add contact page
+    //'/products',        // ✅ Add products page
+    //'/pricing',         // ✅ Add pricing page
+    //'/faq',             // ✅ Add FAQ page
+    //'/blog',            // ✅ Add blog page
+    //'/terms',           // ✅ Add terms page
+    //'/privacy',         // ✅ Add privacy page
+    //'/refund',          // ✅ Add refund policy
+    //'/help',            // ✅ Add help center
+    //'/testimonials',    // ✅ Add testimonials
+    //'/affiliate',       // ✅ Add affiliate program
+    //'/plan',            // ✅ Add compensation plan
   ];
   
-  const isPublicRoute = publicRoutes.includes(request.nextUrl.pathname);
+  // Check if the path starts with any public route or is exactly a public route
+  const isPublicRoute = publicRoutes.some(route => 
+    request.nextUrl.pathname === route || 
+    request.nextUrl.pathname.startsWith('/api/') ||
+    request.nextUrl.pathname === '/'
+  );
 
   // If no user and trying to access protected route
   if (!user && !isPublicRoute) {
@@ -44,10 +62,9 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  // If user exists and trying to access public routes
+  // If user exists and trying to access public routes (except reset-password)
   if (user && isPublicRoute) {
     // Don't redirect from reset-password if there's a session
-    // This allows users to reset their password while logged in
     if (request.nextUrl.pathname === '/reset-password') {
       return response;
     }

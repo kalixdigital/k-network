@@ -65,7 +65,7 @@ export default function Footer() {
               Wellness Today. Wealth Tomorrow. Join thousands of members building their wellness and wealth.
             </p>
 
-            {/* Social Links - Using alternative icons */}
+            {/* Social Links */}
             <div className="flex gap-3 pt-2">
               <a
                 href="https://facebook.com"
@@ -166,7 +166,7 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Resources & CTA */}
+          {/* Resources */}
           <div>
             <h3 className="text-sm font-semibold text-white uppercase tracking-wider mb-4">
               Resources
@@ -186,26 +186,6 @@ export default function Footer() {
                 </li>
               ))}
             </ul>
-
-            {/* Newsletter CTA */}
-            <div className="mt-6 p-4 rounded-xl bg-slate-800/30 border border-slate-700/50">
-              <p className="text-sm font-medium text-white mb-2">
-                Stay Updated
-              </p>
-              <p className="text-xs text-slate-400 mb-3">
-                Get the latest news and updates
-              </p>
-              <div className="flex gap-2">
-                <input
-                  type="email"
-                  placeholder="Your email"
-                  className="flex-1 rounded-lg bg-slate-900/50 border border-slate-700 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none"
-                />
-                <button className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 transition">
-                  Subscribe
-                </button>
-              </div>
-            </div>
           </div>
         </div>
 

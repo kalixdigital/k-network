@@ -42,14 +42,14 @@ const levels = [
   },
   {
     level: "Level 3",
-    requirement: "200 Points",
+    requirement: "250 Points",
     reward: "20 pts Direct • 10 pts Indirect",
     icon: TrendingUp,
     color: "text-purple-400",
     bg: "bg-purple-500/10",
     border: "border-purple-500/20",
     badge: "Silver",
-    points: "200 pts",
+    points: "250 pts",
   },
   {
     level: "Level 4",

@@ -19,7 +19,7 @@ const steps = [
   {
     icon: UserPlus,
     title: "Join",
-    description: "Purchase K-Herbal Flusher and activate your account.",
+    description: "Purchase our product and activate your account.",
     color: "text-emerald-400",
     bg: "bg-emerald-500/10",
     border: "border-emerald-500/20",
